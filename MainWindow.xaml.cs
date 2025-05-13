@@ -77,8 +77,8 @@ public partial class MainWindow : Window
             // Добавляем игрока на канвас
             GameCanvas.Children.Add(_player.PlayerShape);
             
-            // Инициализируем менеджер игры
-            _gameManager = new GameManager(GameCanvas, _player, GameCanvas.ActualWidth, GameCanvas.ActualHeight);
+            // Инициализируем менеджер игры, передаем менеджер спрайтов
+            _gameManager = new GameManager(GameCanvas, _player, GameCanvas.ActualWidth, GameCanvas.ActualHeight, _spriteManager);
             _gameManager.ScoreChanged += GameManager_ScoreChanged;
             _gameManager.WeaponChanged += GameManager_WeaponChanged;
             

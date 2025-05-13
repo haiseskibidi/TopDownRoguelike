@@ -30,15 +30,17 @@ namespace GunVault.GameEngine
         private const int SCORE_PER_MULTI_SPAWN = 200;
         private const int MAX_ENEMIES_ON_SCREEN = 20;
         private const double EXPLOSION_EXPANSION_SPEED = 150.0;
+        private SpriteManager _spriteManager;
         public event EventHandler<int> ScoreChanged;
         public event EventHandler<string> WeaponChanged;
 
-        public GameManager(Canvas gameCanvas, Player player, double gameWidth, double gameHeight)
+        public GameManager(Canvas gameCanvas, Player player, double gameWidth, double gameHeight, SpriteManager spriteManager = null)
         {
             _gameCanvas = gameCanvas;
             _player = player;
             _gameWidth = gameWidth;
             _gameHeight = gameHeight;
+            _spriteManager = spriteManager;
             _enemies = new List<Enemy>();
             _bullets = new List<Bullet>();
             _explosions = new List<Explosion>();
@@ -111,11 +113,20 @@ namespace GunVault.GameEngine
         {
             WeaponType currentType = _player.GetWeaponType();
             WeaponType expectedType = WeaponFactory.GetWeaponTypeForScore(_score);
+            
+            // Проверяем, нужно ли сменить оружие
             if (expectedType != currentType)
             {
+                // Создаем новое оружие (только логика без визуального представления)
                 Weapon newWeapon = WeaponFactory.CreateWeapon(expectedType);
+                
+                // Меняем оружие у игрока и обновляем его спрайт
                 _player.ChangeWeapon(newWeapon, _gameCanvas);
+                
+                // Запоминаем тип оружия
                 _lastWeaponType = expectedType;
+                
+                // Уведомляем об изменении оружия
                 WeaponChanged?.Invoke(this, newWeapon.Name);
             }
         }
@@ -181,14 +192,8 @@ namespace GunVault.GameEngine
                 spawnX = _random.Next(0, (int)_gameWidth);
                 spawnY = _random.NextDouble() < 0.5 ? -50 : _gameHeight + 50;
             }
-            double healthMultiplier = 1.0 + (_score / 500.0);
-            double health = 30 * healthMultiplier + _score / 100;
-            double speedMultiplier = 1.0 + (_score / 1000.0);
-            double baseSpeed = 50 + _random.Next(0, 30);
-            double speed = baseSpeed * speedMultiplier;
-            double radius = 15;
-            int scoreValue = 10;
-            Enemy enemy = new Enemy(spawnX, spawnY, health, speed, radius, scoreValue);
+            EnemyType enemyType = EnemyFactory.GetRandomEnemyTypeForScore(_score, _random);
+            Enemy enemy = EnemyFactory.CreateEnemy(enemyType, spawnX, spawnY, _score, _spriteManager);
             _gameCanvas.Children.Add(enemy.EnemyShape);
             _gameCanvas.Children.Add(enemy.HealthBar);
             _enemies.Add(enemy);
@@ -291,7 +296,16 @@ namespace GunVault.GameEngine
             {
                 if (_enemies[i].CollidesWithPlayer(_player))
                 {
-                    _player.TakeDamage(10);
+                    _player.TakeDamage(_enemies[i].DamageOnCollision);
+                    if (_enemies[i].Type == EnemyType.Bomber)
+                    {
+                        CreateExplosion(
+                            _enemies[i].X,
+                            _enemies[i].Y,
+                            _enemies[i].DamageOnCollision * 2,
+                            100
+                        );
+                    }
                     _gameCanvas.Children.Remove(_enemies[i].EnemyShape);
                     _gameCanvas.Children.Remove(_enemies[i].HealthBar);
                     _enemies.RemoveAt(i);

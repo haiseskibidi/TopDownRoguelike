@@ -82,6 +82,8 @@ namespace GunVault.GameEngine
                     return null;
                 }
                 
+                Console.WriteLine($"Загружаю спрайт: {filePath}");
+                
                 BitmapImage bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.UriSource = new Uri(filePath, UriKind.Absolute);
@@ -108,8 +110,8 @@ namespace GunVault.GameEngine
                 
                 if (sprite == null)
                 {
-                    Console.WriteLine($"Не удалось загрузить спрайт {spriteName}, использую запасной вариант");
-                    return CreateFallbackShape(width, height);
+                    Console.WriteLine($"Создаю запасную форму для спрайта {spriteName} (размеры: {width}x{height})");
+                    return CreateFallbackShape(width, height, spriteName);
                 }
                 
                 Image image = new Image
@@ -125,19 +127,39 @@ namespace GunVault.GameEngine
             catch (Exception ex)
             {
                 Console.WriteLine($"Ошибка при создании спрайта {spriteName}: {ex.Message}");
-                return CreateFallbackShape(width, height);
+                return CreateFallbackShape(width, height, spriteName);
             }
         }
         
-        private UIElement CreateFallbackShape(double width, double height)
+        private UIElement CreateFallbackShape(double width, double height, string spriteName = null)
         {
-            return new Ellipse
+            // Для оружия лучше использовать прямоугольник с цветом, соответствующим типу оружия
+            Brush fillBrush = Brushes.DarkGray;
+            
+            // Определим цвет для разных типов оружия
+            if (spriteName != null)
+            {
+                switch (spriteName.ToLower())
+                {
+                    case "pistol": fillBrush = Brushes.DarkGray; break;
+                    case "shotgun": fillBrush = Brushes.Brown; break;
+                    case "assault_rifle": fillBrush = Brushes.Green; break;
+                    case "sniper": fillBrush = Brushes.DarkBlue; break;
+                    case "machine_gun": fillBrush = Brushes.DarkGreen; break;
+                    case "rocket_launcher": fillBrush = Brushes.Red; break;
+                    case "laser": fillBrush = Brushes.Purple; break;
+                    case "enemy1": fillBrush = Brushes.Red; break;
+                    case "player": fillBrush = Brushes.Blue; break;
+                }
+            }
+            
+            return new Rectangle
             {
                 Width = width,
                 Height = height,
-                Fill = Brushes.Blue,
+                Fill = fillBrush,
                 Stroke = Brushes.Black,
-                StrokeThickness = 2
+                StrokeThickness = 1
             };
         }
     }

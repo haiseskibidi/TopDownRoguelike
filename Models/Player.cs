@@ -4,10 +4,13 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Media.Imaging;
 using GunVault.GameEngine;
 
 namespace GunVault.Models
 {
+    // Удаляем дублирующийся класс WeaponMuzzleConfig, который теперь определен в отдельном файле
+    
     public class Player
     {
         private const double PLAYER_SPEED = 5.0;
@@ -38,7 +41,22 @@ namespace GunVault.Models
             
             if (spriteManager != null)
             {
-                PlayerShape = spriteManager.CreateSpriteImage("player", PLAYER_RADIUS * 2, PLAYER_RADIUS * 2);
+                // Используем комбинированный спрайт игрока с оружием
+                PlayerShape = spriteManager.CreateSpriteImage("player_pistol", PLAYER_RADIUS * 2.5, PLAYER_RADIUS * 2.5);
+                
+                // Если не удалось загрузить спрайт, используем запасную форму
+                if (!(PlayerShape is Image))
+                {
+                    Console.WriteLine("Не удалось загрузить спрайт игрока, использую запасную форму");
+                    PlayerShape = new Ellipse
+                    {
+                        Width = PLAYER_RADIUS * 2,
+                        Height = PLAYER_RADIUS * 2,
+                        Fill = Brushes.Blue,
+                        Stroke = Brushes.Black,
+                        StrokeThickness = 2
+                    };
+                }
             }
             else
             {
@@ -52,6 +70,7 @@ namespace GunVault.Models
                 };
             }
             
+            // Создаем оружие (только логика без визуального представления)
             CurrentWeapon = WeaponFactory.CreateWeapon(WeaponType.Pistol);
             
             UpdatePosition();
@@ -59,14 +78,41 @@ namespace GunVault.Models
 
         public void AddWeaponToCanvas(Canvas canvas)
         {
-            canvas.Children.Add(CurrentWeapon.WeaponShape);
+            // Метод оставлен для совместимости с существующим кодом
+            // Но ничего не делает, так как нет отдельных спрайтов оружия
         }
         
         public void ChangeWeapon(Weapon newWeapon, Canvas canvas)
         {
-            canvas.Children.Remove(CurrentWeapon.WeaponShape);
+            // Просто меняем оружие (только логика)
             CurrentWeapon = newWeapon;
-            canvas.Children.Add(CurrentWeapon.WeaponShape);
+            Console.WriteLine($"Оружие изменено на {newWeapon.Name}");
+            
+            // Обновляем спрайт игрока на основе нового оружия
+            try
+            {
+                // Пытаемся получить SpriteManager из MainWindow
+                var mainWindow = Application.Current.MainWindow as GunVault.MainWindow;
+                SpriteManager spriteManager = null;
+                
+                if (mainWindow != null)
+                {
+                    // Используем отражение, чтобы получить приватное поле _spriteManager
+                    var field = mainWindow.GetType().GetField("_spriteManager", 
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    
+                    if (field != null)
+                    {
+                        spriteManager = field.GetValue(mainWindow) as SpriteManager;
+                    }
+                }
+                
+                UpdatePlayerSprite(spriteManager, canvas);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка при обновлении спрайта игрока: {ex.Message}");
+            }
         }
         
         public void UpdatePosition()
@@ -166,8 +212,6 @@ namespace GunVault.Models
         
         public List<Bullet> Shoot(Point targetPoint)
         {
-            CurrentWeapon.UpdatePosition(X, Y, targetPoint);
-            
             if (CurrentWeapon.IsLaser)
             {
                 return null;
@@ -175,8 +219,35 @@ namespace GunVault.Models
             
             if (CurrentWeapon.CanFire())
             {
-                Point muzzlePosition = CurrentWeapon.GetMuzzlePosition();
-                return CurrentWeapon.Fire(muzzlePosition.X, muzzlePosition.Y, targetPoint.X, targetPoint.Y);
+                // Получаем настройки дула для текущего типа оружия
+                var muzzleParams = WeaponMuzzleConfig.GetMuzzleParams(CurrentWeapon.Type);
+                
+                // Рассчитываем базовое расстояние от центра игрока до дула
+                double muzzleDistance = WeaponMuzzleConfig.GetMuzzleDistance(CurrentWeapon.Type, PLAYER_RADIUS);
+                
+                // Изменяем знак вертикального смещения, если игрок смотрит влево (отражение спрайта)
+                double offsetY = muzzleParams.OffsetY;
+                bool isFlipped = Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2;
+                if (isFlipped)
+                {
+                    offsetY = -offsetY; // Меняем знак вертикального смещения при отражении
+                }
+                
+                // Применяем поворот к смещениям X и Y
+                double offsetXRotated = muzzleParams.OffsetX * Math.Cos(_currentAngle) - offsetY * Math.Sin(_currentAngle);
+                double offsetYRotated = offsetY * Math.Cos(_currentAngle) + muzzleParams.OffsetX * Math.Sin(_currentAngle);
+                
+                // Итоговые координаты дула
+                double muzzleX = X + Math.Cos(_currentAngle) * muzzleDistance + offsetXRotated;
+                double muzzleY = Y + Math.Sin(_currentAngle) * muzzleDistance + offsetYRotated;
+                
+                // Отладочная информация
+                string flipped = isFlipped ? "да" : "нет";
+                Console.WriteLine($"Выстрел из {CurrentWeapon.Name}, угол: {_currentAngle * 180 / Math.PI:F1}°, отражение: {flipped}");
+                Console.WriteLine($"Смещения: дистанция={muzzleDistance:F1}, Y_исходный={muzzleParams.OffsetY:F1}, Y_итоговый={offsetY:F1}");
+                Console.WriteLine($"Позиция игрока: ({X:F1}, {Y:F1}), позиция дула: ({muzzleX:F1}, {muzzleY:F1})");
+                
+                return CurrentWeapon.Fire(muzzleX, muzzleY, targetPoint.X, targetPoint.Y);
             }
             
             return null;
@@ -184,15 +255,38 @@ namespace GunVault.Models
         
         public LaserBeam ShootLaser(Point targetPoint)
         {
-            CurrentWeapon.UpdatePosition(X, Y, targetPoint);
-            
             if (!CurrentWeapon.IsLaser || !CurrentWeapon.CanFire())
             {
                 return null;
             }
             
-            Point muzzlePosition = CurrentWeapon.GetMuzzlePosition();
-            return CurrentWeapon.FireLaser(muzzlePosition.X, muzzlePosition.Y, targetPoint.X, targetPoint.Y);
+            // Используем те же настройки для лазера
+            var muzzleParams = WeaponMuzzleConfig.GetMuzzleParams(CurrentWeapon.Type);
+            double muzzleDistance = WeaponMuzzleConfig.GetMuzzleDistance(CurrentWeapon.Type, PLAYER_RADIUS);
+            
+            // Изменяем знак вертикального смещения, если игрок смотрит влево (отражение спрайта)
+            double offsetY = muzzleParams.OffsetY;
+            bool isFlipped = Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2;
+            if (isFlipped)
+            {
+                offsetY = -offsetY; // Меняем знак вертикального смещения при отражении
+            }
+            
+            // Применяем поворот к смещениям X и Y
+            double offsetXRotated = muzzleParams.OffsetX * Math.Cos(_currentAngle) - offsetY * Math.Sin(_currentAngle);
+            double offsetYRotated = offsetY * Math.Cos(_currentAngle) + muzzleParams.OffsetX * Math.Sin(_currentAngle);
+            
+            // Итоговые координаты дула
+            double muzzleX = X + Math.Cos(_currentAngle) * muzzleDistance + offsetXRotated;
+            double muzzleY = Y + Math.Sin(_currentAngle) * muzzleDistance + offsetYRotated;
+            
+            // Отладочная информация
+            string flipped = isFlipped ? "да" : "нет";
+            Console.WriteLine($"Лазерный выстрел, угол: {_currentAngle * 180 / Math.PI:F1}°, отражение: {flipped}");
+            Console.WriteLine($"Смещения: дистанция={muzzleDistance:F1}, Y_исходный={muzzleParams.OffsetY:F1}, Y_итоговый={offsetY:F1}");
+            Console.WriteLine($"Позиция игрока: ({X:F1}, {Y:F1}), позиция дула: ({muzzleX:F1}, {muzzleY:F1})");
+            
+            return CurrentWeapon.FireLaser(muzzleX, muzzleY, targetPoint.X, targetPoint.Y);
         }
         
         public void UpdateWeapon(double deltaTime, Point targetPoint)
@@ -203,9 +297,8 @@ namespace GunVault.Models
                 UpdateRotation(deltaTime);
             }
             
+            // Обновляем только логику оружия
             CurrentWeapon.Update(deltaTime);
-            CurrentWeapon.UpdatePosition(X, Y, targetPoint);
-            CurrentWeapon.UpdateRotation(deltaTime);
         }
         
         public void StartReload()
@@ -231,6 +324,70 @@ namespace GunVault.Models
         public Weapon GetCurrentWeapon()
         {
             return CurrentWeapon;
+        }
+
+        private void UpdatePlayerSprite(SpriteManager spriteManager, Canvas parentCanvas)
+        {
+            // Проверяем, что у нас есть spriteManager и PlayerShape
+            if (spriteManager == null || CurrentWeapon == null)
+                return;
+            
+            string spriteName;
+            
+            switch (CurrentWeapon.Type)
+            {
+                case WeaponType.Pistol:
+                    spriteName = "player_pistol";
+                    break;
+                case WeaponType.Shotgun:
+                    spriteName = "player_pistol";
+                    break;
+                case WeaponType.AssaultRifle:
+                    spriteName = "player_pistol";
+                    break;
+                case WeaponType.Sniper:
+                    spriteName = "player_pistol";
+                    break;
+                case WeaponType.MachineGun:
+                    spriteName = "player_pistol";
+                    break;
+                case WeaponType.RocketLauncher:
+                    spriteName = "player_pistol";
+                    break;
+                case WeaponType.Laser:
+                    spriteName = "player_pistol";
+                    break;
+                default:
+                    spriteName = "player_pistol";
+                    break;
+            }
+            
+            if (parentCanvas != null)
+            {
+                // Удаляем старый спрайт
+                parentCanvas.Children.Remove(PlayerShape);
+                
+                // Создаем новый спрайт с нужным типом оружия
+                Console.WriteLine($"Обновляю спрайт игрока для оружия {CurrentWeapon.Name}, использую спрайт {spriteName}");
+                PlayerShape = spriteManager.CreateSpriteImage(spriteName, PLAYER_RADIUS * 2.5, PLAYER_RADIUS * 2.5);
+                
+                // Если не удалось загрузить спрайт, используем запасную форму
+                if (!(PlayerShape is Image))
+                {
+                    Console.WriteLine("Не удалось загрузить спрайт игрока, использую запасную форму");
+                    PlayerShape = new Ellipse
+                    {
+                        Width = PLAYER_RADIUS * 2,
+                        Height = PLAYER_RADIUS * 2,
+                        Fill = Brushes.Blue,
+                        Stroke = Brushes.Black,
+                        StrokeThickness = 2
+                    };
+                }
+                
+                parentCanvas.Children.Add(PlayerShape);
+                UpdatePosition();
+            }
         }
     }
 } 

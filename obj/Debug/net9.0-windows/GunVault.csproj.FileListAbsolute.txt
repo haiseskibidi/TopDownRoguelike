@@ -18,3 +18,4 @@ C:\Users\Q1\Documents\2025\gunvault\obj\Debug\net9.0-windows\refint\GunVault.dll
 C:\Users\Q1\Documents\2025\gunvault\obj\Debug\net9.0-windows\GunVault.pdb
 C:\Users\Q1\Documents\2025\gunvault\obj\Debug\net9.0-windows\GunVault.genruntimeconfig.cache
 C:\Users\Q1\Documents\2025\gunvault\obj\Debug\net9.0-windows\ref\GunVault.dll
+C:\Users\Q1\Documents\2025\gunvault\obj\Debug\net9.0-windows\GunVault.sourcelink.json
