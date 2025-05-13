@@ -133,10 +133,8 @@ namespace GunVault.GameEngine
         
         private UIElement CreateFallbackShape(double width, double height, string spriteName = null)
         {
-            // Для оружия лучше использовать прямоугольник с цветом, соответствующим типу оружия
             Brush fillBrush = Brushes.DarkGray;
             
-            // Определим цвет для разных типов оружия
             if (spriteName != null)
             {
                 switch (spriteName.ToLower())

@@ -114,19 +114,11 @@ namespace GunVault.GameEngine
             WeaponType currentType = _player.GetWeaponType();
             WeaponType expectedType = WeaponFactory.GetWeaponTypeForScore(_score);
             
-            // Проверяем, нужно ли сменить оружие
             if (expectedType != currentType)
             {
-                // Создаем новое оружие (только логика без визуального представления)
                 Weapon newWeapon = WeaponFactory.CreateWeapon(expectedType);
-                
-                // Меняем оружие у игрока и обновляем его спрайт
                 _player.ChangeWeapon(newWeapon, _gameCanvas);
-                
-                // Запоминаем тип оружия
                 _lastWeaponType = expectedType;
-                
-                // Уведомляем об изменении оружия
                 WeaponChanged?.Invoke(this, newWeapon.Name);
             }
         }

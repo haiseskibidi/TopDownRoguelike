@@ -4,25 +4,23 @@ using GunVault.GameEngine;
 
 namespace GunVault.Models
 {
-    // Перечисление для типов врагов
     public enum EnemyType
     {
-        Basic,      // Базовый враг (красный круг)
-        Runner,     // Быстрый враг с малым уроном
-        Tank,       // Медленный враг с большим здоровьем
-        Bomber,     // Взрывающийся враг
-        Boss        // Босс (большой враг с большим здоровьем)
+        Basic,
+        Runner,
+        Tank,
+        Bomber,
+        Boss
     }
     
-    // Класс для хранения параметров врага
     public class EnemyConfig
     {
-        public double BaseHealth { get; set; }      // Базовое здоровье
-        public double BaseSpeed { get; set; }       // Базовая скорость
-        public double Radius { get; set; }          // Радиус
-        public int ScoreValue { get; set; }         // Количество очков за убийство
-        public string SpriteName { get; set; }      // Имя спрайта
-        public double DamageOnCollision { get; set; } // Урон при столкновении с игроком
+        public double BaseHealth { get; set; }
+        public double BaseSpeed { get; set; }
+        public double Radius { get; set; }
+        public int ScoreValue { get; set; }
+        public string SpriteName { get; set; }
+        public double DamageOnCollision { get; set; }
         
         public EnemyConfig(double health, double speed, double radius, int score, string sprite, double damage = 10)
         {
@@ -35,10 +33,8 @@ namespace GunVault.Models
         }
     }
     
-    // Фабрика для создания врагов
     public static class EnemyFactory
     {
-        // Словарь конфигураций для каждого типа врага
         private static readonly Dictionary<EnemyType, EnemyConfig> EnemyConfigs = new Dictionary<EnemyType, EnemyConfig>
         {
             { EnemyType.Basic, new EnemyConfig(health: 30, speed: 60, radius: 15, score: 10, sprite: "enemy1") },
@@ -48,7 +44,6 @@ namespace GunVault.Models
             { EnemyType.Boss, new EnemyConfig(health: 300, speed: 25, radius: 30, score: 100, sprite: "enemy1", damage: 40) }
         };
         
-        // Создание врага определенного типа
         public static Enemy CreateEnemy(EnemyType type, double x, double y, int scoreLevel = 0, SpriteManager? spriteManager = null)
         {
             if (!EnemyConfigs.ContainsKey(type))
@@ -56,17 +51,14 @@ namespace GunVault.Models
                 throw new ArgumentException($"Неизвестный тип врага: {type}");
             }
             
-            // Получаем базовую конфигурацию врага
             EnemyConfig config = EnemyConfigs[type];
             
-            // Масштабируем характеристики в зависимости от уровня счета
-            double healthMultiplier = 1.0 + (scoreLevel / 500.0); // Каждые 500 очков +100% к здоровью
-            double health = config.BaseHealth * healthMultiplier + scoreLevel / 100; // Здоровье увеличивается со счетом
+            double healthMultiplier = 1.0 + (scoreLevel / 500.0);
+            double health = config.BaseHealth * healthMultiplier + scoreLevel / 100;
             
-            double speedMultiplier = 1.0 + (scoreLevel / 1000.0); // Каждые 1000 очков +100% к скорости
+            double speedMultiplier = 1.0 + (scoreLevel / 1000.0);
             double speed = config.BaseSpeed * speedMultiplier;
             
-            // Создаем врага с соответствующими характеристиками
             return new Enemy(
                 startX: x,
                 startY: y,
@@ -81,10 +73,8 @@ namespace GunVault.Models
             );
         }
         
-        // Определение типа врага в зависимости от счета
         public static EnemyType GetRandomEnemyTypeForScore(int score, Random random)
         {
-            // Список доступных типов врагов в зависимости от счета
             List<EnemyType> availableTypes = new List<EnemyType> { EnemyType.Basic };
             
             if (score >= 100)
@@ -102,12 +92,11 @@ namespace GunVault.Models
                 availableTypes.Add(EnemyType.Bomber);
             }
             
-            if (score >= 1000 && random.NextDouble() < 0.05) // 5% шанс появления босса
+            if (score >= 1000 && random.NextDouble() < 0.05)
             {
                 return EnemyType.Boss;
             }
             
-            // Случайно выбираем тип из доступных
             int index = random.Next(availableTypes.Count);
             return availableTypes[index];
         }
