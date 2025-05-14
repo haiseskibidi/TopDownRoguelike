@@ -4,12 +4,14 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using GunVault.GameEngine;
+using System.Windows.Media.Animation;
 
 namespace GunVault.Models
 {
     public class Enemy
     {
         private const double ENEMY_ROTATION_SPEED = 8.0;
+        private const double HIT_FLASH_DURATION = 0.15;
         
         public double X { get; private set; }
         public double Y { get; private set; }
@@ -26,6 +28,9 @@ namespace GunVault.Models
         
         private double _currentAngle = 0;
         private double _targetAngle = 0;
+        private Brush _originalBrush;
+        private bool _isFlashing = false;
+        private double _originalSpeed;
         
         public Enemy(double startX, double startY, double health, double speed, double radius, int scoreValue, 
                     double damageOnCollision = 10, EnemyType type = EnemyType.Basic, string spriteName = "enemy1", 
@@ -36,6 +41,7 @@ namespace GunVault.Models
             MaxHealth = health;
             Health = MaxHealth;
             Speed = speed;
+            _originalSpeed = speed;
             Radius = radius;
             ScoreValue = scoreValue;
             DamageOnCollision = damageOnCollision;
@@ -47,11 +53,12 @@ namespace GunVault.Models
             }
             else
             {
+                _originalBrush = GetEnemyColor(type);
                 EnemyShape = new Ellipse
                 {
                     Width = Radius * 2,
                     Height = Radius * 2,
-                    Fill = GetEnemyColor(type),
+                    Fill = _originalBrush,
                     Stroke = Brushes.DarkRed,
                     StrokeThickness = 2
                 };
@@ -173,10 +180,78 @@ namespace GunVault.Models
             }
         }
         
+        private void FlashOnHit()
+        {
+            if (_isFlashing)
+                return;
+                
+            _isFlashing = true;
+            
+            _originalSpeed = Speed;
+            Speed = Speed * 0.5;
+            
+            if (EnemyShape is Ellipse ellipse)
+            {
+                if (_originalBrush == null)
+                    _originalBrush = ellipse.Fill;
+                
+                ellipse.Fill = Brushes.Red;
+                
+                var timer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(HIT_FLASH_DURATION)
+                };
+                
+                timer.Tick += (sender, e) =>
+                {
+                    ellipse.Fill = _originalBrush;
+                    Speed = _originalSpeed;
+                    timer.Stop();
+                    _isFlashing = false;
+                };
+                
+                timer.Start();
+            }
+            else if (EnemyShape is Image image)
+            {
+                var effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = Colors.Red,
+                    ShadowDepth = 0,
+                    BlurRadius = 20,
+                    Opacity = 1
+                };
+                
+                var currentEffect = image.Effect;
+                
+                image.Effect = effect;
+                
+                image.OpacityMask = new SolidColorBrush(Color.FromArgb(180, 255, 0, 0));
+                
+                var timer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(HIT_FLASH_DURATION)
+                };
+                
+                timer.Tick += (sender, e) =>
+                {
+                    image.Effect = currentEffect;
+                    image.OpacityMask = null;
+                    Speed = _originalSpeed;
+                    timer.Stop();
+                    _isFlashing = false;
+                };
+                
+                timer.Start();
+            }
+        }
+        
         public bool TakeDamage(double damage)
         {
             Health = Math.Max(0, Health - damage);
             UpdatePosition();
+            
+            FlashOnHit();
             
             return Health > 0;
         }
