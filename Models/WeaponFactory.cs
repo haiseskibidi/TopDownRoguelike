@@ -5,7 +5,7 @@ namespace GunVault.Models
 {
     public class WeaponFactory
     {
-        private const int SCORE_PER_WEAPON_UPGRADE = 50;
+        private const int SCORE_PER_WEAPON_UPGRADE = 100;
         
         private static readonly List<WeaponType> WeaponProgression = new List<WeaponType>
         {

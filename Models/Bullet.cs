@@ -3,6 +3,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using GunVault.GameEngine;
+using GunVault.Models.Physics;
 
 namespace GunVault.Models
 {
@@ -13,13 +15,17 @@ namespace GunVault.Models
         private double _angle;
         public double Speed { get; private set; }
         public double Damage { get; private set; }
-        public double RemainingRange { get; private set; }
+        public double RemainingRange { get; set; }
         
+        public double PrevX => _prevX;
+        public double PrevY => _prevY;
         private double _prevX;
         private double _prevY;
         
         public Ellipse BulletShape { get; private set; }
         private const double BULLET_RADIUS = 4.0; 
+        
+        public TileType? CollidedWithTileType { get; private set; }
         
         public Bullet(double startX, double startY, double angle, double speed, double damage, double range, WeaponType weaponType = WeaponType.Pistol)
         {
@@ -31,6 +37,7 @@ namespace GunVault.Models
             Speed = speed;
             Damage = damage;
             RemainingRange = range;
+            CollidedWithTileType = null;
             
             SolidColorBrush bulletFill = GetBulletColor(weaponType);
             
@@ -94,55 +101,30 @@ namespace GunVault.Models
         
         public bool Collides(Enemy enemy)
         {
-            double dx = X - enemy.X;
-            double dy = Y - enemy.Y;
-            double distance = Math.Sqrt(dx * dx + dy * dy);
-            
-            if (distance < BULLET_RADIUS + enemy.Radius)
-                return true;
-                
-            double moveDist = Math.Sqrt(Math.Pow(X - _prevX, 2) + Math.Pow(Y - _prevY, 2));
-            if (moveDist < BULLET_RADIUS)
+            return CollisionHelper.CheckBulletEnemyCollision(
+                X, Y, 
+                _prevX, _prevY, 
+                BULLET_RADIUS, 
+                enemy.X, enemy.Y, 
+                enemy.Radius);
+        }
+        
+        public bool CollidesWithTile(RectCollider tileCollider, TileType tileType)
+        {
+            if (tileType == TileType.Water)
                 return false;
-                
-            double vectorX = X - _prevX;
-            double vectorY = Y - _prevY;
-            double vectorLength = Math.Sqrt(vectorX * vectorX + vectorY * vectorY);
             
-            if (vectorLength > 0)
+            if (CollisionHelper.CheckBulletTileCollision(
+                X, Y, 
+                _prevX, _prevY, 
+                BULLET_RADIUS, 
+                tileCollider))
             {
-                vectorX /= vectorLength;
-                vectorY /= vectorLength;
+                CollidedWithTileType = tileType;
+                return true;
             }
             
-            double toPrevX = enemy.X - _prevX;
-            double toPrevY = enemy.Y - _prevY;
-            
-            double projection = toPrevX * vectorX + toPrevY * vectorY;
-            
-            double closestX, closestY;
-            
-            if (projection < 0)
-            {
-                closestX = _prevX;
-                closestY = _prevY;
-            }
-            else if (projection > vectorLength)
-            {
-                closestX = X;
-                closestY = Y;
-            }
-            else
-            {
-                closestX = _prevX + projection * vectorX;
-                closestY = _prevY + projection * vectorY;
-            }
-            
-            double closestDx = closestX - enemy.X;
-            double closestDy = closestY - enemy.Y;
-            double closestDistance = Math.Sqrt(closestDx * closestDx + closestDy * closestDy);
-            
-            return closestDistance < BULLET_RADIUS + enemy.Radius;
+            return false;
         }
     }
 } 

@@ -7,6 +7,8 @@
         mc:Ignorable="d"
         Title="GunVault - Рогалик" Height="720" Width="1280" 
         WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
+        ResizeMode="CanResize"
         KeyDown="Window_KeyDown" 
         KeyUp="Window_KeyUp"
         SizeChanged="Window_SizeChanged">
@@ -17,21 +19,22 @@
         </Grid.RowDefinitions>
         
         <!-- Панель информации об игроке -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Background="#333333" Height="50">
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Background="#333333" Height="50" Panel.ZIndex="1000">
             <TextBlock x:Name="HealthText" Text="Здоровье: 100" Foreground="White" FontSize="18" Margin="20,0,0,0" VerticalAlignment="Center"/>
             <TextBlock x:Name="WeaponText" Text="Оружие: Пистолет" Foreground="White" FontSize="18" Margin="40,0,0,0" VerticalAlignment="Center"/>
             <TextBlock x:Name="AmmoText" Text="Патроны: 12/12" Foreground="White" FontSize="18" Margin="40,0,0,0" VerticalAlignment="Center"/>
             <TextBlock x:Name="ScoreText" Text="Счёт: 0" Foreground="White" FontSize="18" Margin="40,0,0,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="DebugInfoText" Text="Отладка" Foreground="#AAFFAA" FontSize="16" Margin="40,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
         </StackPanel>
         
         <!-- Игровое поле -->
-        <Canvas x:Name="GameCanvas" Grid.Row="1" Background="#222222" Focusable="True"/>
+        <Canvas x:Name="GameCanvas" Grid.Row="1" Background="#222222" Focusable="True" Panel.ZIndex="0"/>
         
         <!-- Уведомление о новом оружии -->
         <Border x:Name="WeaponNotification" Grid.Row="1" Visibility="Collapsed" Background="#80000000" 
                 HorizontalAlignment="Center" VerticalAlignment="Top" CornerRadius="0,0,10,10"
                 Padding="20,15" MaxWidth="500" BorderBrush="#FFD700" BorderThickness="0,0,2,2"
-                Panel.ZIndex="100" Margin="0,0,0,0">
+                Panel.ZIndex="1000" Margin="0,0,0,0">
             <StackPanel>
                 <TextBlock Text="НОВОЕ ОРУЖИЕ!" Foreground="#FFD700" FontSize="20" FontWeight="Bold" 
                            HorizontalAlignment="Center" Margin="0,0,0,10"/>

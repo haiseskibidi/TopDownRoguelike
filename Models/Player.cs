@@ -15,8 +15,17 @@ namespace GunVault.Models
         private const double PLAYER_RADIUS = 15.0;
         private const double PLAYER_ROTATION_SPEED = 10.0;
         
+        // Определяем фиксированные размеры для всех спрайтов игрока
+        private const double FIXED_SPRITE_WIDTH = 60.0;
+        private const double FIXED_SPRITE_HEIGHT = 40.0;
+        
+        // Константа для смещения точки вращения спрайта (в процентах от ширины)
+        // 0.0 - крайняя левая точка, 0.5 - центр, 1.0 - крайняя правая точка
+        private const double ROTATION_POINT_OFFSET = 0.25;
+        
+        // Оставляем эти константы, но они будут использоваться только для базовой формы
         private const double BASE_SPRITE_WIDTH = 46.0;
-        private const double BASE_SPRITE_HEIGHT = 30.0;
+        private const double BASE_SPRITE_HEIGHT = 32.0;
         private const double TARGET_SPRITE_HEIGHT = PLAYER_RADIUS * 2.5;
         
         public double X { get; private set; }
@@ -25,6 +34,8 @@ namespace GunVault.Models
         public double MaxHealth { get; private set; }
         public UIElement PlayerShape { get; private set; }
         public Weapon CurrentWeapon { get; private set; }
+        public RectCollider Collider { get; private set; } // Изменено с CircleCollider на RectCollider
+        public Rectangle ColliderVisual { get; private set; } // Визуализация коллайдера для отладки
         
         public bool MovingUp { get; set; }
         public bool MovingDown { get; set; }
@@ -36,8 +47,9 @@ namespace GunVault.Models
         
         private static readonly Dictionary<string, Tuple<double, double>> SpriteProportions = new Dictionary<string, Tuple<double, double>>
         {
-            { "player_pistol", new Tuple<double, double>(46.0, 30.0) },
-            { "player_shotgun", new Tuple<double, double>(60.0, 30.0) },
+            { "player_pistol", new Tuple<double, double>(46.0, 32.0) },
+            { "player_shotgun", new Tuple<double, double>(60.0, 32.0) },
+            { "player_assaultrifle", new Tuple<double, double>(60.0, 32.0) },
         };
         
         public Player(double startX, double startY, SpriteManager spriteManager = null)
@@ -47,6 +59,9 @@ namespace GunVault.Models
             MaxHealth = 100;
             Health = MaxHealth;
             
+            // Инициализируем коллайдер
+            InitializeCollider();
+            
             if (spriteManager != null)
             {
                 var spriteSizes = CalculateSpriteSize("player_pistol");
@@ -55,49 +70,104 @@ namespace GunVault.Models
                 if (!(PlayerShape is Image))
                 {
                     Console.WriteLine("Не удалось загрузить спрайт игрока, использую запасную форму");
-                    PlayerShape = new Ellipse
-                    {
-                        Width = PLAYER_RADIUS * 2,
-                        Height = PLAYER_RADIUS * 2,
-                        Fill = Brushes.Blue,
-                        Stroke = Brushes.Black,
-                        StrokeThickness = 2
-                    };
+                    PlayerShape = CreateFallbackShape();
                 }
             }
             else
             {
-                PlayerShape = new Ellipse
-                {
-                    Width = PLAYER_RADIUS * 2,
-                    Height = PLAYER_RADIUS * 2,
-                    Fill = Brushes.Blue,
-                    Stroke = Brushes.Black,
-                    StrokeThickness = 2
-                };
+                PlayerShape = CreateFallbackShape();
             }
             
             CurrentWeapon = WeaponFactory.CreateWeapon(WeaponType.Pistol);
             
             UpdatePosition();
+            
+            Console.WriteLine($"Игрок создан с фиксированным размером спрайта: {FIXED_SPRITE_WIDTH}x{FIXED_SPRITE_HEIGHT}");
+        }
+        
+        /// <summary>
+        /// Инициализирует коллайдер игрока с фиксированным размером
+        /// </summary>
+        private void InitializeCollider()
+        {
+            // Используем фиксированный размер коллайдера
+            double colliderWidth = FIXED_SPRITE_WIDTH * 0.55; // Уменьшаем размер коллайдера на 30% от размера спрайта
+            double colliderHeight = FIXED_SPRITE_HEIGHT * 0.7;
+            
+            // Смещение для центрирования коллайдера относительно позиции игрока
+            double offsetX = -colliderWidth / 2 - 15;
+            double offsetY = -colliderHeight / 2;
+            
+            if (Collider == null)
+            {
+                // Создаем коллайдер при первой инициализации
+                Collider = new RectCollider(X + offsetX, Y + offsetY, colliderWidth, colliderHeight);
+                
+                // Создаем визуализацию коллайдера для отладки
+                ColliderVisual = new Rectangle
+                {
+                    Width = colliderWidth,
+                    Height = colliderHeight,
+                    Stroke = Brushes.Cyan,
+                    StrokeThickness = 3,
+                    Fill = new SolidColorBrush(Color.FromArgb(80, 0, 255, 255)),
+                    StrokeDashArray = new DoubleCollection { 2, 2 } // Пунктирная линия для отличия от других коллайдеров
+                };
+                
+                Console.WriteLine($"Создан коллайдер размером: {colliderWidth}x{colliderHeight}");
+            }
+            else
+            {
+                // Обновляем размеры и позицию существующего коллайдера
+                Collider.UpdatePosition(X + offsetX, Y + offsetY);
+                Collider.Width = colliderWidth;
+                Collider.Height = colliderHeight;
+            }
+            
+            // Обновляем визуализацию коллайдера
+            if (ColliderVisual != null)
+            {
+                Canvas.SetLeft(ColliderVisual, Collider.X);
+                Canvas.SetTop(ColliderVisual, Collider.Y);
+                ColliderVisual.Width = Collider.Width;
+                ColliderVisual.Height = Collider.Height;
+            }
+        }
+
+        /// <summary>
+        /// Обновляет позицию коллайдера с учетом поворота спрайта
+        /// </summary>
+        private void UpdateColliderPosition(bool isFlipped)
+        {
+            // Используем общий метод для инициализации/обновления коллайдера
+            InitializeCollider();
+            
+            // Для отладки
+            Console.WriteLine($"Позиция игрока: ({X:F1}, {Y:F1}), позиция коллайдера: ({Collider.X:F1}, {Collider.Y:F1})");
+            Console.WriteLine($"Фиксированный размер коллайдера: {Collider.Width:F1}x{Collider.Height:F1}");
         }
         
         private Tuple<double, double> CalculateSpriteSize(string spriteName)
         {
-            if (SpriteProportions.TryGetValue(spriteName, out var proportions))
+            // Всегда возвращаем фиксированные размеры спрайта, сохраняя при этом пропорции
+            if (SpriteProportions.TryGetValue(spriteName, out var originalProportions))
             {
-                double originalWidth = proportions.Item1;
-                double originalHeight = proportions.Item2;
+                double originalWidth = originalProportions.Item1;
+                double originalHeight = originalProportions.Item2;
                 
-                double scaleFactor = TARGET_SPRITE_HEIGHT / originalHeight;
-                double adjustedWidth = originalWidth * scaleFactor;
+                // Сохраняем соотношение сторон, но используем фиксированную высоту
+                double aspectRatio = originalWidth / originalHeight;
+                double adjustedWidth = FIXED_SPRITE_HEIGHT * aspectRatio;
                 
-                Console.WriteLine($"Рассчитан размер для спрайта {spriteName}: {adjustedWidth:F1}x{TARGET_SPRITE_HEIGHT:F1} (масштаб: {scaleFactor:F2})");
+                Console.WriteLine($"Стандартизированный размер для спрайта {spriteName}: {adjustedWidth:F1}x{FIXED_SPRITE_HEIGHT:F1} " +
+                                  $"(исходные пропорции: {originalWidth}x{originalHeight})");
                 
-                return new Tuple<double, double>(adjustedWidth, TARGET_SPRITE_HEIGHT);
+                return new Tuple<double, double>(adjustedWidth, FIXED_SPRITE_HEIGHT);
             }
             
-            return new Tuple<double, double>(PLAYER_RADIUS * 2.5, PLAYER_RADIUS * 2.5);
+            // Для неизвестных спрайтов используем фиксированные размеры
+            Console.WriteLine($"Используем стандартный размер для неизвестного спрайта {spriteName}: {FIXED_SPRITE_WIDTH}x{FIXED_SPRITE_HEIGHT}");
+            return new Tuple<double, double>(FIXED_SPRITE_WIDTH, FIXED_SPRITE_HEIGHT);
         }
 
         public void AddWeaponToCanvas(Canvas canvas)
@@ -143,11 +213,18 @@ namespace GunVault.Models
                 Canvas.SetLeft(PlayerShape, X - actualWidth / 2);
                 Canvas.SetTop(PlayerShape, Y - actualHeight / 2);
                 
-                var rotateTransform = new RotateTransform(_currentAngle * 180 / Math.PI, actualWidth / 2, actualHeight / 2);
+                // Вычисляем смещенную точку вращения (1/4 ширины от левого края)
+                double rotationPointX = actualWidth * ROTATION_POINT_OFFSET;
+                double rotationPointY = actualHeight / 2; // Вертикально центрируем
                 
-                if (Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2)
+                var rotateTransform = new RotateTransform(_currentAngle * 180 / Math.PI, rotationPointX, rotationPointY);
+                
+                // Определяем, когда спрайт отражается по вертикали
+                bool isFlipped = Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2;
+                
+                if (isFlipped)
                 {
-                    var scaleTransform = new ScaleTransform(1, -1, actualWidth / 2, actualHeight / 2);
+                    var scaleTransform = new ScaleTransform(1, -1, rotationPointX, rotationPointY);
                     TransformGroup transformGroup = new TransformGroup();
                     transformGroup.Children.Add(scaleTransform);
                     transformGroup.Children.Add(rotateTransform);
@@ -158,11 +235,18 @@ namespace GunVault.Models
                 {
                     PlayerShape.RenderTransform = rotateTransform;
                 }
+                
+                // Обновляем коллайдер с учетом поворота и возможного отражения
+                UpdateColliderPosition(isFlipped);
             }
             else
             {
                 Canvas.SetLeft(PlayerShape, X - PLAYER_RADIUS);
                 Canvas.SetTop(PlayerShape, Y - PLAYER_RADIUS);
+                
+                // Для не-Image формы используем более простое смещение,
+                // но все равно вызываем UpdateColliderPosition для консистентности
+                UpdateColliderPosition(false);
             }
         }
         
@@ -199,33 +283,162 @@ namespace GunVault.Models
             double dx = 0;
             double dy = 0;
             
-            if (MovingLeft) dx -= 1;
-            if (MovingRight) dx += 1;
-            if (MovingUp) dy -= 1;
-            if (MovingDown) dy += 1;
-            
-            if (dx != 0 && dy != 0)
-            {
-                double length = Math.Sqrt(dx * dx + dy * dy);
-                dx /= length;
-                dy /= length;
-            }
+            if (MovingUp)
+                dy -= PLAYER_SPEED;
+            if (MovingDown)
+                dy += PLAYER_SPEED;
+            if (MovingLeft)
+                dx -= PLAYER_SPEED;
+            if (MovingRight)
+                dx += PLAYER_SPEED;
             
             if (dx != 0 || dy != 0)
             {
-                _targetAngle = Math.Atan2(dy, dx);
+                // Нормализуем движение по диагонали
+                if (dx != 0 && dy != 0)
+                {
+                    double length = Math.Sqrt(dx * dx + dy * dy);
+                    dx = dx / length * PLAYER_SPEED;
+                    dy = dy / length * PLAYER_SPEED;
+                }
+                
+                // Реализуем продвинутую проверку с коллизиями и скользящими столкновениями
+                MoveWithSlidingCollisions(dx, dy);
+                
+                // Обновляем визуальную позицию
+                UpdatePosition();
             }
-            
-            X += dx * PLAYER_SPEED;
-            Y += dy * PLAYER_SPEED;
-            
-            UpdatePosition();
         }
         
+        /// <summary>
+        /// Продвинутое перемещение с обработкой скользящих столкновений
+        /// </summary>
+        private void MoveWithSlidingCollisions(double dx, double dy)
+        {
+            // Получаем доступ к LevelGenerator через GameManager
+            var gameManager = GetGameManager();
+            if (gameManager == null) 
+            {
+                // Если нет GameManager, просто перемещаем напрямую
+                X += dx;
+                Y += dy;
+                return;
+            }
+            
+            // Константа для микро-перемещений (шаг итерации)
+            const double microStep = 0.5;
+            
+            // Шаг 1: Сначала проверим, можно ли двигаться напрямую
+            if (TryMove(dx, dy, gameManager))
+            {
+                // Можем двигаться напрямую без коллизий
+                return;
+            }
+            
+            // Шаг 2: Если нет, пробуем скользящие движения по отдельным осям
+            
+            // Пытаемся двигаться по горизонтали
+            bool movedHorizontally = false;
+            if (dx != 0 && TryMove(dx, 0, gameManager))
+            {
+                movedHorizontally = true;
+            }
+            
+            // Пытаемся двигаться по вертикали
+            bool movedVertically = false;
+            if (dy != 0 && TryMove(0, dy, gameManager))
+            {
+                movedVertically = true;
+            }
+            
+            // Шаг 3: Если ни одно из движений не удалось, пробуем микро-движения
+            if (!movedHorizontally && !movedVertically && (Math.Abs(dx) > microStep || Math.Abs(dy) > microStep))
+            {
+                // Разбиваем движение на более мелкие шаги
+                double stepRatio = microStep / Math.Max(Math.Abs(dx), Math.Abs(dy));
+                double microDx = dx * stepRatio;
+                double microDy = dy * stepRatio;
+                
+                // Рекурсивно вызываем с уменьшенным шагом
+                MoveWithSlidingCollisions(microDx, microDy);
+                
+                // После микрошага пытаемся сделать оставшееся перемещение
+                MoveWithSlidingCollisions(dx - microDx, dy - microDy);
+            }
+        }
+        
+        /// <summary>
+        /// Пытается переместить игрока с проверкой коллизий
+        /// </summary>
+        private bool TryMove(double dx, double dy, GameManager gameManager)
+        {
+            // Сохраняем текущие координаты
+            double oldX = X;
+            double oldY = Y;
+            
+            // Временно перемещаем игрока и его коллайдер в новую позицию
+            X += dx;
+            Y += dy;
+            
+            // Обновляем позицию коллайдера
+            UpdateColliderPosition(Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2);
+            
+            // Проверяем коллизии
+            bool canMove = gameManager.IsAreaWalkable(Collider);
+            
+            if (!canMove)
+            {
+                // Возвращаем игрока и коллайдер в исходную позицию если есть коллизия
+                X = oldX;
+                Y = oldY;
+                UpdateColliderPosition(Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2);
+            }
+            
+            return canMove;
+        }
+        
+        /// <summary>
+        /// Получает GameManager из MainWindow
+        /// </summary>
+        private GameManager GetGameManager()
+        {
+            try
+            {
+                var mainWindow = Application.Current.MainWindow as GunVault.MainWindow;
+                if (mainWindow == null) return null;
+                
+                var gameManagerField = mainWindow.GetType().GetField("_gameManager", 
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                
+                if (gameManagerField == null) return null;
+                
+                return gameManagerField.GetValue(mainWindow) as GameManager;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+        
+        /// <summary>
+        /// Ограничивает игрока размерами экрана
+        /// </summary>
         public void ConstrainToScreen(double screenWidth, double screenHeight)
         {
             X = Math.Max(PLAYER_RADIUS, Math.Min(X, screenWidth - PLAYER_RADIUS));
             Y = Math.Max(PLAYER_RADIUS, Math.Min(Y, screenHeight - PLAYER_RADIUS));
+            
+            UpdatePosition();
+        }
+        
+        /// <summary>
+        /// Ограничивает игрока размерами игрового мира
+        /// </summary>
+        public void ConstrainToWorldBounds(double minX, double minY, double maxX, double maxY)
+        {
+            // Используем радиус игрока для правильного ограничения
+            X = Math.Max(minX + PLAYER_RADIUS, Math.Min(X, maxX - PLAYER_RADIUS));
+            Y = Math.Max(minY + PLAYER_RADIUS, Math.Min(Y, maxY - PLAYER_RADIUS));
             
             UpdatePosition();
         }
@@ -379,7 +592,7 @@ namespace GunVault.Models
                     spriteName = "player_shotgun";
                     break;
                 case WeaponType.AssaultRifle:
-                    spriteName = "player_pistol";
+                    spriteName = "player_assaultrifle";
                     break;
                 case WeaponType.Sniper:
                     spriteName = "player_pistol";
@@ -407,22 +620,48 @@ namespace GunVault.Models
                 var spriteSizes = CalculateSpriteSize(spriteName);
                 PlayerShape = spriteManager.CreateSpriteImage(spriteName, spriteSizes.Item1, spriteSizes.Item2);
                 
-                if (!(PlayerShape is Image))
+                if (PlayerShape is Image image)
+                {
+                    // Размер коллайдера не меняем, он теперь фиксированный
+                    Console.WriteLine($"Спрайт загружен, размер: {image.Width}x{image.Height}, коллайдер сохраняет фиксированный размер");
+                }
+                else
                 {
                     Console.WriteLine("Не удалось загрузить спрайт игрока, использую запасную форму");
-                    PlayerShape = new Ellipse
-                    {
-                        Width = PLAYER_RADIUS * 2,
-                        Height = PLAYER_RADIUS * 2,
-                        Fill = Brushes.Blue,
-                        Stroke = Brushes.Black,
-                        StrokeThickness = 2
-                    };
+                    PlayerShape = CreateFallbackShape();
                 }
                 
                 parentCanvas.Children.Add(PlayerShape);
                 UpdatePosition();
             }
+        }
+
+        // Метод для добавления визуализации коллайдера на канвас
+        public void AddColliderVisualToCanvas(Canvas canvas)
+        {
+            // Оставляем метод пустым, чтобы полностью отключить визуализацию коллайдера
+            // Даже не добавляем коллайдер на канвас
+            // Это необходимо для работы с существующими вызовами этого метода из других частей кода
+        }
+        
+        // Метод для скрытия/отображения визуализации коллайдера
+        public void ToggleColliderVisibility(bool isVisible)
+        {
+            // Оставляем метод пустым, поскольку коллайдеры больше не отображаются
+            // Это сохранит совместимость с существующими вызовами
+        }
+
+        // Вспомогательный метод для создания формы по умолчанию
+        private UIElement CreateFallbackShape()
+        {
+            return new Ellipse
+            {
+                Width = FIXED_SPRITE_WIDTH,
+                Height = FIXED_SPRITE_HEIGHT,
+                Fill = Brushes.Blue,
+                Stroke = Brushes.Black,
+                StrokeThickness = 2
+            };
         }
     }
 } 

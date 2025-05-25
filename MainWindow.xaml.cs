@@ -23,6 +23,9 @@ public partial class MainWindow : Window
     // Таймер для автоматического скрытия уведомления
     private System.Windows.Threading.DispatcherTimer? _notificationTimer;
     
+    // Флаг для отображения информации о размерах мира
+    private bool _showDebugInfo = false;
+    
     public MainWindow()
     {
         InitializeComponent();
@@ -66,9 +69,13 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Инициализируем игрока в центре экрана
-            double centerX = GameCanvas.ActualWidth / 2;
-            double centerY = GameCanvas.ActualHeight / 2;
+            // Рассчитываем размеры мира (в 3 раза больше экрана)
+            double worldWidth = GameCanvas.ActualWidth * 3.0; // WORLD_SIZE_MULTIPLIER из GameManager
+            double worldHeight = GameCanvas.ActualHeight * 3.0;
+
+            // Инициализируем игрока в центре МИРА, а не экрана
+            double centerX = worldWidth / 2;
+            double centerY = worldHeight / 2;
             _player = new Player(centerX, centerY, _spriteManager);
             
             // Инициализируем обработчик ввода
@@ -76,6 +83,9 @@ public partial class MainWindow : Window
             
             // Добавляем игрока на канвас
             GameCanvas.Children.Add(_player.PlayerShape);
+            
+            // Метод AddColliderVisualToCanvas все еще существует, но уже ничего не делает
+            _player.AddColliderVisualToCanvas(GameCanvas);
             
             // Инициализируем менеджер игры, передаем менеджер спрайтов
             _gameManager = new GameManager(GameCanvas, _player, GameCanvas.ActualWidth, GameCanvas.ActualHeight, _spriteManager);
@@ -99,9 +109,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Ошибка при инициализации игры: {ex.Message}\n{ex.StackTrace}");
-            MessageBox.Show($"Ошибка при инициализации игры: {ex.Message}", 
-                "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Ошибка при инициализации игры: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            Console.WriteLine($"Ошибка при инициализации игры: {ex}");
         }
     }
     
@@ -215,11 +224,66 @@ public partial class MainWindow : Window
         
         // Обновляем счет
         ScoreText.Text = $"Счёт: {_score}";
+        
+        // Отображаем отладочную информацию, если включено
+        if (_showDebugInfo)
+        {
+            DebugInfoText.Text = $"Поз. игрока: ({_player?.X:F0}, {_player?.Y:F0})";
+            DebugInfoText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            DebugInfoText.Visibility = Visibility.Collapsed;
+        }
+    }
+    
+    // Отображение обычного уведомления
+    private void ShowNotification(string message)
+    {
+        // Останавливаем таймер, если он активен
+        if (_notificationTimer!.IsEnabled)
+        {
+            _notificationTimer.Stop();
+        }
+        
+        // Устанавливаем текст уведомления
+        NotificationWeaponName.Text = message;
+        
+        // Показываем уведомление с анимацией
+        WeaponNotification.Opacity = 0;
+        WeaponNotification.Visibility = Visibility.Visible;
+        
+        // Анимация появления
+        DoubleAnimation fadeInAnimation = new DoubleAnimation
+        {
+            From = 0,
+            To = 1,
+            Duration = TimeSpan.FromSeconds(0.3)
+        };
+        
+        // Запускаем анимацию
+        WeaponNotification.BeginAnimation(UIElement.OpacityProperty, fadeInAnimation);
+        
+        // Запускаем таймер для автоматического скрытия
+        _notificationTimer.Start();
     }
     
     // Обработка изменения размера окна
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        // Игнорируем изменения размера, когда ширина или высота canvas равны 0 (при минимизации)
+        if (GameCanvas.ActualWidth <= 1 || GameCanvas.ActualHeight <= 1)
+        {
+            return;
+        }
+            
+        // Также игнорируем, если размер изменился незначительно (может быть вызвано восстановлением из минимизации)
+        if (Math.Abs(e.PreviousSize.Width - e.NewSize.Width) < 10 && 
+            Math.Abs(e.PreviousSize.Height - e.NewSize.Height) < 10)
+        {
+            return;
+        }
+            
         if (_gameLoop != null)
         {
             _gameLoop.ResizeGameArea(GameCanvas.ActualWidth, GameCanvas.ActualHeight);
@@ -239,6 +303,12 @@ public partial class MainWindow : Window
         {
             _gameManager.HandleKeyPress(e);
         }
+        
+        // Отображение/скрытие отладочной информации
+        if (e.Key == Key.F3)
+        {
+            _showDebugInfo = !_showDebugInfo;
+        }
     }
     
     // Обработка отпускания клавиш
@@ -247,6 +317,28 @@ public partial class MainWindow : Window
         if (_inputHandler != null)
         {
             _inputHandler.HandleKeyUp(e);
+        }
+    }
+
+    private void MainWindow_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case System.Windows.Input.Key.W:
+                _player.MovingUp = true;
+                break;
+            case System.Windows.Input.Key.S:
+                _player.MovingDown = true;
+                break;
+            case System.Windows.Input.Key.A:
+                _player.MovingLeft = true;
+                break;
+            case System.Windows.Input.Key.D:
+                _player.MovingRight = true;
+                break;
+            case System.Windows.Input.Key.R:
+                _player.StartReload();
+                break;
         }
     }
 }

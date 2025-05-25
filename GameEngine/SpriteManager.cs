@@ -139,6 +139,7 @@ namespace GunVault.GameEngine
             {
                 switch (spriteName.ToLower())
                 {
+                    // Оружие
                     case "pistol": fillBrush = Brushes.DarkGray; break;
                     case "shotgun": fillBrush = Brushes.Brown; break;
                     case "assault_rifle": fillBrush = Brushes.Green; break;
@@ -146,8 +147,17 @@ namespace GunVault.GameEngine
                     case "machine_gun": fillBrush = Brushes.DarkGreen; break;
                     case "rocket_launcher": fillBrush = Brushes.Red; break;
                     case "laser": fillBrush = Brushes.Purple; break;
+                    
+                    // Персонажи
                     case "enemy1": fillBrush = Brushes.Red; break;
                     case "player": fillBrush = Brushes.Blue; break;
+                    
+                    // Тайлы
+                    case "grass1": fillBrush = Brushes.ForestGreen; break;
+                    case "dirt1": fillBrush = Brushes.SaddleBrown; break;
+                    case "water1": fillBrush = Brushes.DodgerBlue; break;
+                    case "stone1": fillBrush = Brushes.Gray; break;
+                    case "sand1": fillBrush = Brushes.Khaki; break;
                 }
             }
             
