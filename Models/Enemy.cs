@@ -24,11 +24,12 @@ namespace GunVault.Models
         public EnemyType Type { get; private set; }
         public CircleCollider Collider { get; private set; }
         
-        // Добавляем свойство IsDead, которое определяет мёртв ли враг
         public bool IsDead => Health <= 0;
         
         public UIElement EnemyShape { get; private set; }
         public Rectangle HealthBar { get; private set; }
+        
+        public DateTime CreationTime { get; private set; }
         
         private double _currentAngle = 0;
         private double _targetAngle = 0;
@@ -42,20 +43,19 @@ namespace GunVault.Models
         {
             X = startX;
             Y = startY;
+            Health = health;
             MaxHealth = health;
-            Health = MaxHealth;
             Speed = speed;
             _originalSpeed = speed;
             Radius = radius;
             ScoreValue = scoreValue;
             DamageOnCollision = damageOnCollision;
             Type = type;
+            CreationTime = DateTime.Now;
             
-            // Добавляем параметры для смещения
-            double offsetX = -15; // смещение по X (положительное - вправо, отрицательное - влево)
-            double offsetY = 0; // смещение по Y (положительное - вниз, отрицательное - вверх)
+            double offsetX = -15;
+            double offsetY = 0;
 
-            // Создаем коллайдер со смещением и измененным размером
             Collider = new CircleCollider(X + offsetX, Y + offsetY, Radius * 0.8);
             
             if (spriteManager != null)
@@ -114,7 +114,6 @@ namespace GunVault.Models
             
             HealthBar.Width = (Health / MaxHealth) * (Radius * 2);
             
-            // Обновляем позицию коллайдера
             Collider.UpdatePosition(X, Y);
             
             if (EnemyShape is Image)
@@ -187,46 +186,37 @@ namespace GunVault.Models
                     currentSpeed *= 1.5;
                 }
                 
-                // Сохраняем текущую позицию для проверки коллизий
                 double newX = X + dx * currentSpeed * deltaTime;
                 double newY = Y + dy * currentSpeed * deltaTime;
                 
-                // Проверяем коллизию с тайлами
                 bool canMove = true;
                 
-                // Получаем доступ к GameManager
                 var gameManager = GetGameManager();
                 if (gameManager != null && gameManager._levelGenerator != null)
                 {
-                    // Временно обновляем коллайдер для проверки коллизии
                     double originalX = X;
                     double originalY = Y;
                     
-                    // Пробуем сначала по обеим осям
                     X = newX;
                     Y = newY;
                     Collider.UpdatePosition(X, Y);
                     
-                    // Проверяем коллизию
                     canMove = IsValidPosition(gameManager);
                     
                     if (!canMove)
                     {
-                        // Пробуем двигаться только по X
                         X = newX;
                         Y = originalY;
                         Collider.UpdatePosition(X, Y);
                         
                         bool canMoveX = IsValidPosition(gameManager);
                         
-                        // Пробуем двигаться только по Y
                         X = originalX;
                         Y = newY;
                         Collider.UpdatePosition(X, Y);
                         
                         bool canMoveY = IsValidPosition(gameManager);
                         
-                        // Выбираем направление движения
                         if (canMoveX)
                         {
                             X = newX;
@@ -239,16 +229,13 @@ namespace GunVault.Models
                         }
                         else
                         {
-                            // Не можем двигаться ни в одном направлении
                             X = originalX;
                             Y = originalY;
                         }
                     }
-                    // Если canMove == true, то позиции X, Y уже обновлены
                 }
                 else
                 {
-                    // Если нет доступа к GameManager, просто двигаемся
                     X = newX;
                     Y = newY;
                 }
@@ -257,22 +244,16 @@ namespace GunVault.Models
             }
         }
         
-        /// <summary>
-        /// Проверяет, может ли моб находиться в текущей позиции без коллизий
-        /// </summary>
         private bool IsValidPosition(GameManager gameManager)
         {
-            // Проверка коллизий с тайлами
             var nearbyTileColliders = gameManager._levelGenerator.GetNearbyTileColliders(X, Y);
             foreach (var tileCollider in nearbyTileColliders)
             {
                 TileType tileType = gameManager._levelGenerator.GetTileTypeAt(tileCollider.Key);
                 
-                // Пропускаем проходимые тайлы
                 if (TileSettings.TileInfos[tileType].IsWalkable)
                     continue;
                 
-                // Проверяем коллизию
                 if (Collider.Intersects(tileCollider.Value))
                 {
                     return false;
@@ -282,9 +263,6 @@ namespace GunVault.Models
             return true;
         }
         
-        /// <summary>
-        /// Получает экземпляр GameManager из MainWindow
-        /// </summary>
         private GameManager GetGameManager()
         {
             try

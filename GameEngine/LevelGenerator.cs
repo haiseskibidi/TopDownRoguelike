@@ -17,22 +17,13 @@ namespace GunVault.GameEngine
         private Random _random;
         private List<UIElement> _groundTiles;
         private Dictionary<TileType, List<UIElement>> _tilesByType;
-        
-        // Карта с типами тайлов
         private TileType[,] _tileMap;
-        
-        // Коллайдеры для непроходимых тайлов
         private Dictionary<string, RectCollider> _tileColliders;
-        
-        // Внутренний размер коллайдера тайла (практически равен визуальному размеру)
         private const double COLLIDER_SIZE_FACTOR = 0.98;
-        
-        // Сид для генератора карты, чтобы можно было воссоздать ту же карту
         private int _mapSeed;
         private bool _isFirstGeneration = true;
-        
-        private List<UIElement> _tileColliderVisuals; // Изменен тип с List<Rectangle> на List<UIElement>
-        private bool _showTileColliders = false; // Скрываем коллайдеры по умолчанию
+        private List<UIElement> _tileColliderVisuals;
+        private bool _showTileColliders = false;
         
         public LevelGenerator(Canvas gameCanvas, double gameWidth, double gameHeight, SpriteManager spriteManager)
         {
@@ -46,26 +37,19 @@ namespace GunVault.GameEngine
             _tileColliders = new Dictionary<string, RectCollider>();
             _tileColliderVisuals = new List<UIElement>();
             
-            // Инициализируем словарь для хранения тайлов каждого типа
             foreach (TileType type in Enum.GetValues(typeof(TileType)))
             {
                 _tilesByType[type] = new List<UIElement>();
             }
         }
 
-        /// <summary>
-        /// Генерирует уровень с использованием цепей Маркова и клеточных автоматов
-        /// </summary>
         public void GenerateLevel()
         {
-            // Удаляем предыдущие тайлы, если есть
             ClearLevel();
 
-            // Вычисляем размер карты в тайлах
-            int mapWidth = (int)Math.Ceiling(_gameWidth / TileSettings.TILE_SIZE) + 3;  // +3 для перекрытия краев
+            int mapWidth = (int)Math.Ceiling(_gameWidth / TileSettings.TILE_SIZE) + 3;
             int mapHeight = (int)Math.Ceiling(_gameHeight / TileSettings.TILE_SIZE) + 3;
             
-            // При первой генерации создаем случайный сид для карты
             if (_isFirstGeneration)
             {
                 _mapSeed = new Random().Next();
@@ -77,54 +61,42 @@ namespace GunVault.GameEngine
                 Console.WriteLine($"Используем существующий сид карты: {_mapSeed}");
             }
             
-            // Генерируем новую карту с использованием сохраненного сида
             MapGenerator mapGenerator = new MapGenerator(mapWidth, mapHeight, _mapSeed);
             _tileMap = mapGenerator.Generate();
             
-            // Размер одиночного тайла с учетом перекрытия
             double tilePlacementSize = TileSettings.TILE_SIZE - TileSettings.TILE_OVERLAP;
             
-            // Очищаем коллайдеры
             _tileColliders.Clear();
             
-            // Размещаем тайлы на карте согласно сгенерированной карте типов тайлов
             for (int y = 0; y < mapHeight; y++)
             {
                 for (int x = 0; x < mapWidth; x++)
                 {
-                    // Вычисляем позицию с перекрытием
                     double xPos = x * tilePlacementSize - TileSettings.TILE_OVERLAP;
                     double yPos = y * tilePlacementSize - TileSettings.TILE_OVERLAP;
                     
-                    // Получаем тип тайла из карты
                     TileType tileType = _tileMap[x, y];
                     TileInfo tileInfo = TileSettings.TileInfos[tileType];
                     
-                    // Создаем тайл нужного типа
                     UIElement tile = CreateTile(xPos, yPos, tileInfo.SpriteName);
                     if (tile != null)
                     {
-                        // Добавляем тайл на canvas и в соответствующие списки
                         _gameCanvas.Children.Insert(0, tile);
                         Panel.SetZIndex(tile, -10);
                         _groundTiles.Add(tile);
                         _tilesByType[tileType].Add(tile);
                         
-                        // Если тайл непроходимый, создаем для него коллайдер
                         if (!tileInfo.IsWalkable)
                         {
-                            // Размер коллайдера практически равен визуальному тайлу для предотвращения проскакивания пуль
                             double colliderSize = TileSettings.TILE_SIZE * COLLIDER_SIZE_FACTOR;
                             double colliderOffset = (TileSettings.TILE_SIZE - colliderSize) / 2.0;
                             
-                            // Создаем коллайдер, центрированный в середине тайла
                             RectCollider collider = new RectCollider(
                                 xPos + colliderOffset,
                                 yPos + colliderOffset,
                                 colliderSize,
                                 colliderSize);
                             
-                            // Сохраняем коллайдер с уникальным ключом по координатам
                             string colliderKey = $"{x}:{y}";
                             _tileColliders[colliderKey] = collider;
                         }
@@ -138,13 +110,8 @@ namespace GunVault.GameEngine
                 Console.WriteLine($"- {tileType}: {_tilesByType[tileType].Count} штук");
             }
             Console.WriteLine($"Создано {_tileColliders.Count} коллайдеров для непроходимых тайлов");
-            
-            // Убираем код отображения коллайдеров полностью
         }
 
-        /// <summary>
-        /// Создает тайл с указанным спрайтом и позицией
-        /// </summary>
         private UIElement CreateTile(double x, double y, string spriteName)
         {
             try
@@ -154,7 +121,6 @@ namespace GunVault.GameEngine
                 Canvas.SetLeft(tile, x);
                 Canvas.SetTop(tile, y);
                 
-                // Случайное отзеркаливание по горизонтали для разнообразия
                 if (_random.NextDouble() > 0.5)
                 {
                     ScaleTransform flipTransform = new ScaleTransform(-1, 1);
@@ -171,9 +137,6 @@ namespace GunVault.GameEngine
             }
         }
 
-        /// <summary>
-        /// Включает или отключает отображение коллайдеров тайлов
-        /// </summary>
         public void ToggleTileColliders(bool show)
         {
             _showTileColliders = show;
@@ -187,15 +150,10 @@ namespace GunVault.GameEngine
             }
         }
         
-        /// <summary>
-        /// Показывает коллайдеры тайлов для отладки
-        /// </summary>
         private void ShowTileColliders()
         {
-            // Удаляем предыдущие визуализации, если есть
             HideTileColliders();
             
-            // Создаем визуализации для каждого коллайдера
             foreach (var collider in _tileColliders.Values)
             {
                 Rectangle visual = new Rectangle
@@ -203,11 +161,10 @@ namespace GunVault.GameEngine
                     Width = collider.Width,
                     Height = collider.Height,
                     Stroke = Brushes.Red,
-                    StrokeThickness = 2.5,  // Увеличиваем толщину обводки
-                    Fill = new SolidColorBrush(Color.FromArgb(120, 255, 0, 0)) // Более яркий и прозрачный красный
+                    StrokeThickness = 2.5,
+                    Fill = new SolidColorBrush(Color.FromArgb(120, 255, 0, 0))
                 };
                 
-                // Отображаем центральную точку коллайдера для визуализации симметричности
                 Ellipse centerPoint = new Ellipse
                 {
                     Width = 4,
@@ -234,9 +191,6 @@ namespace GunVault.GameEngine
             Console.WriteLine($"Отображено {_tileColliders.Count} коллайдеров тайлов");
         }
         
-        /// <summary>
-        /// Скрывает коллайдеры тайлов
-        /// </summary>
         private void HideTileColliders()
         {
             foreach (var visual in _tileColliderVisuals)
@@ -246,9 +200,6 @@ namespace GunVault.GameEngine
             _tileColliderVisuals.Clear();
         }
         
-        /// <summary>
-        /// Очистка уровня
-        /// </summary>
         public void ClearLevel()
         {
             foreach (UIElement tile in _groundTiles)
@@ -264,19 +215,13 @@ namespace GunVault.GameEngine
             
             _tileColliders.Clear();
             
-            // Скрываем коллайдеры тайлов при очистке уровня
             HideTileColliders();
         }
         
-        /// <summary>
-        /// Обновление размеров уровня при изменении размера окна
-        /// </summary>
         public void ResizeLevel(double newWidth, double newHeight)
         {
-            // Запоминаем текущее состояние видимости коллайдеров
             bool wasVisible = _showTileColliders;
 
-            // Если карта уже сгенерирована и изменения размера небольшие, просто обновляем размеры
             if (_tileMap != null && Math.Abs(_gameWidth - newWidth) < 50 && Math.Abs(_gameHeight - newHeight) < 50)
             {
                 Console.WriteLine("Незначительное изменение размера, сохраняем текущую карту");
@@ -288,10 +233,8 @@ namespace GunVault.GameEngine
             _gameWidth = newWidth;
             _gameHeight = newHeight;
             
-            // Перегенерируем уровень с новыми размерами только при значительных изменениях
             GenerateLevel();
             
-            // Если коллайдеры не должны быть видны, скрываем их
             if (!wasVisible)
             {
                 HideTileColliders();
@@ -299,76 +242,59 @@ namespace GunVault.GameEngine
             }
         }
         
-        /// <summary>
-        /// Проверяет, является ли тайл с указанными координатами проходимым
-        /// </summary>
+        public Dictionary<string, RectCollider> GetTileColliders()
+        {
+            return _tileColliders;
+        }
+        
+        public RectCollider GetTileCollider(string key)
+        {
+            if (_tileColliders.TryGetValue(key, out RectCollider collider))
+            {
+                return collider;
+            }
+            return null;
+        }
+
         public bool IsTileWalkable(double x, double y)
         {
-            // Получаем индексы тайла по мировым координатам
-            int tileX = (int)Math.Floor(x / TileSettings.TILE_SIZE);
-            int tileY = (int)Math.Floor(y / TileSettings.TILE_SIZE);
+            int tileX = (int)Math.Floor(x / TileSettings.TILE_SIZE) + 1;
+            int tileY = (int)Math.Floor(y / TileSettings.TILE_SIZE) + 1;
             
-            // Проверяем выход за границы карты
             if (tileX < 0 || tileX >= _tileMap.GetLength(0) || tileY < 0 || tileY >= _tileMap.GetLength(1))
             {
                 return false;
+                return false; // За пределами карты считается непроходимым
             }
             
-            // Проверяем проходимость тайла по его типу
+            // Получаем тип тайла и проверяем его проходимость
             TileType tileType = _tileMap[tileX, tileY];
-            
-            // Если тайл непроходимый по своему типу, сразу возвращаем false
-            if (!TileSettings.TileInfos[tileType].IsWalkable)
+            if (TileSettings.TileInfos.TryGetValue(tileType, out TileInfo tileInfo))
             {
-                // Для отладки
-                // Console.WriteLine($"Тайл {tileType} в ({tileX}, {tileY}) непроходим по типу");
-                return false;
+                return tileInfo.IsWalkable;
             }
             
-            return true;
+            return false; // Неизвестный тип тайла считается непроходимым
         }
         
         /// <summary>
-        /// Более точная проверка коллизии с коллайдером игрока
+        /// Проверяет, является ли вся указанная область проходимой
         /// </summary>
         public bool IsAreaWalkable(RectCollider playerCollider)
         {
-            // Оптимизация: проверяем только те тайлы, которые находятся рядом с игроком
-            // Это значительно снижает нагрузку на CPU при большом количестве тайлов
+            // Для оптимизации используем только коллайдеры из ближайших чанков
+            Dictionary<string, RectCollider> nearbyColliders = GetNearbyTileColliders(playerCollider.X, playerCollider.Y);
             
-            // Рассчитываем индексы тайлов, близких к игроку
-            double expandedRadius = Math.Max(playerCollider.Width, playerCollider.Height) + TileSettings.TILE_SIZE;
-            int minTileX = (int)Math.Floor((playerCollider.X - expandedRadius) / TileSettings.TILE_SIZE);
-            int maxTileX = (int)Math.Ceiling((playerCollider.X + playerCollider.Width + expandedRadius) / TileSettings.TILE_SIZE);
-            int minTileY = (int)Math.Floor((playerCollider.Y - expandedRadius) / TileSettings.TILE_SIZE);
-            int maxTileY = (int)Math.Ceiling((playerCollider.Y + playerCollider.Height + expandedRadius) / TileSettings.TILE_SIZE);
-            
-            // Ограничиваем индексы размерами карты тайлов
-            minTileX = Math.Max(0, minTileX);
-            maxTileX = Math.Min(_tileMap.GetLength(0) - 1, maxTileX);
-            minTileY = Math.Max(0, minTileY);
-            maxTileY = Math.Min(_tileMap.GetLength(1) - 1, maxTileY);
-            
-            // Проверяем только коллайдеры тех тайлов, которые находятся рядом с игроком
-            for (int y = minTileY; y <= maxTileY; y++)
+            foreach (var collider in nearbyColliders.Values)
             {
-                for (int x = minTileX; x <= maxTileX; x++)
+                // Проверяем пересечение с каждым коллайдером тайла
+                if (playerCollider.Intersects(collider))
                 {
-                    string colliderKey = $"{x}:{y}";
-                    if (_tileColliders.TryGetValue(colliderKey, out var tileCollider))
-                    {
-                        if (playerCollider.Intersects(tileCollider))
-                        {
-                            // Для отладки
-                            // Console.WriteLine($"Коллизия между коллайдером игрока ({playerCollider.X:F1}, {playerCollider.Y:F1}) " +
-                            //     $"и коллайдером тайла ({tileCollider.X:F1}, {tileCollider.Y:F1})");
-                            return false;
-                        }
-                    }
+                    return false; // Если есть пересечение, область непроходима
                 }
             }
             
-            return true;
+            return true; // Нет пересечений, область проходима
         }
 
         /// <summary>
@@ -380,40 +306,34 @@ namespace GunVault.GameEngine
         }
         
         /// <summary>
-        /// Возвращает словарь с ближайшими коллайдерами тайлов к указанной позиции
+        /// Возвращает коллайдеры тайлов вблизи указанной точки
         /// </summary>
-        /// <param name="x">Координата X</param>
-        /// <param name="y">Координата Y</param>
-        /// <returns>Словарь с ключами тайлов и их коллайдерами</returns>
         public Dictionary<string, RectCollider> GetNearbyTileColliders(double x, double y)
         {
-            // Создаем словарь для возврата результатов
-            Dictionary<string, RectCollider> nearbyColliders = new Dictionary<string, RectCollider>();
+            // Рассчитываем границы поиска (примерно 3-4 тайла вокруг точки)
+            double searchDistance = TileSettings.TILE_SIZE * 4;
+            int minTileX = (int)Math.Floor((x - searchDistance) / TileSettings.TILE_SIZE);
+            int maxTileX = (int)Math.Ceiling((x + searchDistance) / TileSettings.TILE_SIZE);
+            int minTileY = (int)Math.Floor((y - searchDistance) / TileSettings.TILE_SIZE);
+            int maxTileY = (int)Math.Ceiling((y + searchDistance) / TileSettings.TILE_SIZE);
             
-            // Определяем радиус поиска (немного больше размера тайла)
-            double searchRadius = TileSettings.TILE_SIZE * 1.5;
-            
-            // Вычисляем индексы тайлов в области поиска
-            int minTileX = (int)Math.Floor((x - searchRadius) / TileSettings.TILE_SIZE);
-            int maxTileX = (int)Math.Ceiling((x + searchRadius) / TileSettings.TILE_SIZE);
-            int minTileY = (int)Math.Floor((y - searchRadius) / TileSettings.TILE_SIZE);
-            int maxTileY = (int)Math.Ceiling((y + searchRadius) / TileSettings.TILE_SIZE);
-            
-            // Ограничиваем индексы размерами карты тайлов
+            // Ограничиваем границы поиска размерами карты
             minTileX = Math.Max(0, minTileX);
             maxTileX = Math.Min(_tileMap.GetLength(0) - 1, maxTileX);
             minTileY = Math.Max(0, minTileY);
             maxTileY = Math.Min(_tileMap.GetLength(1) - 1, maxTileY);
             
-            // Собираем коллайдеры в указанной области
-            for (int tileY = minTileY; tileY <= maxTileY; tileY++)
+            // Собираем коллайдеры в указанном диапазоне
+            Dictionary<string, RectCollider> nearbyColliders = new Dictionary<string, RectCollider>();
+            
+            for (int y1 = minTileY; y1 <= maxTileY; y1++)
             {
-                for (int tileX = minTileX; tileX <= maxTileX; tileX++)
+                for (int x1 = minTileX; x1 <= maxTileX; x1++)
                 {
-                    string colliderKey = $"{tileX}:{tileY}";
-                    if (_tileColliders.TryGetValue(colliderKey, out var tileCollider))
+                    string key = $"{x1}:{y1}";
+                    if (_tileColliders.TryGetValue(key, out RectCollider collider))
                     {
-                        nearbyColliders.Add(colliderKey, tileCollider);
+                        nearbyColliders.Add(key, collider);
                     }
                 }
             }
@@ -458,15 +378,6 @@ namespace GunVault.GameEngine
             }
             
             return _tileMap[tileX, tileY];
-        }
-        
-        /// <summary>
-        /// Возвращает словарь всех коллайдеров тайлов на карте
-        /// </summary>
-        /// <returns>Словарь коллайдеров с ключами в формате "x:y"</returns>
-        public Dictionary<string, RectCollider> GetTileColliders()
-        {
-            return new Dictionary<string, RectCollider>(_tileColliders);
         }
     }
 } 

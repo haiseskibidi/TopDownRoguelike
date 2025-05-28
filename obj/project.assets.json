@@ -14,11 +14,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Q1\\Documents\\2025\\GunVault\\GunVault.csproj",
+      "projectUniqueName": "C:\\Users\\Q1\\Documents\\gunvault\\GunVault.csproj",
       "projectName": "GunVault",
-      "projectPath": "C:\\Users\\Q1\\Documents\\2025\\GunVault\\GunVault.csproj",
+      "projectPath": "C:\\Users\\Q1\\Documents\\gunvault\\GunVault.csproj",
       "packagesPath": "C:\\Users\\Q1\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Q1\\Documents\\2025\\GunVault\\obj\\",
+      "outputPath": "C:\\Users\\Q1\\Documents\\gunvault\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

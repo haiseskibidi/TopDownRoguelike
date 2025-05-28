@@ -3,14 +3,8 @@ using System.Collections.Generic;
 
 namespace GunVault.GameEngine
 {
-    /// <summary>
-    /// Статический класс с настройками и константами для генерации карты
-    /// </summary>
     public static class MapSettings
     {
-        /// <summary>
-        /// Матрица переходов Маркова - вероятности перехода от одного типа тайла к другому
-        /// </summary>
         public static readonly Dictionary<TileType, Dictionary<TileType, double>> MarkovTransitions = 
             new Dictionary<TileType, Dictionary<TileType, double>>()
         {
@@ -61,14 +55,9 @@ namespace GunVault.GameEngine
             }
         };
         
-        /// <summary>
-        /// Правила клеточного автомата: для каждого типа тайла указывается,
-        /// сколько соседей этого же типа нужно, чтобы он остался этим же типом
-        /// </summary>
         public static readonly Dictionary<TileType, int[]> CellularAutomataRules = 
             new Dictionary<TileType, int[]>()
         {
-            // Минимальное и максимальное количество соседей для "выживания" клетки
             { TileType.Grass, new int[] { 4, 8 } },
             { TileType.Dirt, new int[] { 3, 7 } },
             { TileType.Water, new int[] { 5, 8 } },
@@ -76,19 +65,9 @@ namespace GunVault.GameEngine
             { TileType.Sand, new int[] { 3, 7 } }
         };
         
-        /// <summary>
-        /// Настройки генерации карты
-        /// </summary>
         public static class Generation
         {
-            /// <summary>
-            /// Минимальный размер региона для сохранения
-            /// </summary>
             public const int MIN_REGION_SIZE = 4;
-            
-            /// <summary>
-            /// Число итераций клеточного автомата
-            /// </summary>
             public const int DEFAULT_CA_ITERATIONS = 4;
         }
     }

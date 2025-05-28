@@ -4,29 +4,17 @@ using GunVault.Models;
 
 namespace GunVault.Models.Physics
 {
-    /// <summary>
-    /// Класс-движок для обработки физики и столкновений в игре
-    /// </summary>
     public class PhysicsEngine
     {
         private readonly LevelGenerator _levelGenerator;
         private readonly Dictionary<string, RectCollider> _staticColliders;
         
-        /// <summary>
-        /// Создает новый экземпляр движка физики
-        /// </summary>
-        /// <param name="levelGenerator">Генератор уровня с коллайдерами</param>
         public PhysicsEngine(LevelGenerator levelGenerator)
         {
             _levelGenerator = levelGenerator;
             _staticColliders = levelGenerator.GetTileColliders();
         }
         
-        /// <summary>
-        /// Проверяет столкновение пули со всеми тайлами на карте
-        /// </summary>
-        /// <param name="bullet">Проверяемая пуля</param>
-        /// <returns>true если произошло столкновение с каким-либо тайлом</returns>
         public bool CheckBulletTileCollisions(Bullet bullet)
         {
             foreach (var colliderPair in _staticColliders)
@@ -34,8 +22,6 @@ namespace GunVault.Models.Physics
                 string key = colliderPair.Key;
                 RectCollider collider = colliderPair.Value;
                 
-                // Парсим ключ для получения координат тайла
-                // Ключ хранится в формате "x:y"
                 string[] parts = key.Split(':');
                 if (parts.Length == 2 && 
                     int.TryParse(parts[0], out int tileX) && 
@@ -53,16 +39,8 @@ namespace GunVault.Models.Physics
             return false;
         }
         
-        /// <summary>
-        /// Проверяет, может ли сущность двигаться в указанную позицию
-        /// </summary>
-        /// <param name="collider">Коллайдер сущности</param>
-        /// <param name="newX">Новая позиция X</param>
-        /// <param name="newY">Новая позиция Y</param>
-        /// <returns>true если движение возможно (нет коллизий)</returns>
         public bool CanMoveToPosition(Collider entityCollider, double newX, double newY)
         {
-            // Создаем временную копию коллайдера в новой позиции
             Collider tempCollider;
             if (entityCollider is CircleCollider circle)
             {
@@ -74,10 +52,9 @@ namespace GunVault.Models.Physics
             }
             else
             {
-                return false; // Неизвестный тип коллайдера
+                return false;
             }
             
-            // Проверяем пересечения с тайлами
             foreach (var colliderPair in _staticColliders)
             {
                 RectCollider tileCollider = colliderPair.Value;
@@ -100,17 +77,10 @@ namespace GunVault.Models.Physics
             return true;
         }
         
-        /// <summary>
-        /// Проверяет и обрабатывает столкновения между пулями и врагами
-        /// </summary>
-        /// <param name="bullets">Список активных пуль</param>
-        /// <param name="enemies">Список активных врагов</param>
-        /// <returns>Счет, полученный за уничтожение врагов</returns>
         public int ProcessBulletEnemyCollisions(List<Bullet> bullets, List<Enemy> enemies)
         {
             int score = 0;
             
-            // Копируем списки, чтобы избежать проблем с модификацией во время итерации
             List<Bullet> activeBullets = new List<Bullet>(bullets);
             List<Enemy> activeEnemies = new List<Enemy>(enemies);
             
@@ -120,17 +90,15 @@ namespace GunVault.Models.Physics
                 {
                     if (!enemy.IsDead && bullet.Collides(enemy))
                     {
-                        // Наносим урон врагу
                         bool stillAlive = enemy.TakeDamage(bullet.Damage);
-                        if (!stillAlive)  // Метод TakeDamage возвращает true, если враг всё ещё жив
+                        if (!stillAlive)
                         {
                             score += enemy.ScoreValue;
                         }
                         
-                        // Помечаем пулю для удаления
                         bullet.RemainingRange = 0;
                         
-                        break; // Пуля может поразить только одного врага
+                        break;
                     }
                 }
             }
@@ -138,9 +106,6 @@ namespace GunVault.Models.Physics
             return score;
         }
         
-        /// <summary>
-        /// Обновляет все статические коллайдеры при изменении уровня
-        /// </summary>
         public void RefreshStaticColliders()
         {
             _staticColliders.Clear();

@@ -7,6 +7,9 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using GunVault.Models;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 namespace GunVault.GameEngine
 {
@@ -38,18 +41,30 @@ namespace GunVault.GameEngine
         public event EventHandler<int> ScoreChanged;
         public event EventHandler<string> WeaponChanged;
 
-        // Размер игрового мира (по умолчанию равен размеру экрана, но может быть намного больше)
+        private ChunkManager _chunkManager;
+        private bool _showChunkBoundaries = false;
+
         private double _worldWidth;
         private double _worldHeight;
         
-        // Камера для скроллинга
         private Camera _camera;
         
-        // Контейнер для всех игровых объектов, который будет смещаться относительно камеры
         private Canvas _worldContainer;
 
-        // Множитель размера игрового мира относительно экрана
         private const double WORLD_SIZE_MULTIPLIER = 3.0;
+
+        private const double ENEMY_DESPAWN_TIME = 3.0;
+        
+        private double _enemyDespawnCheckTimer = 0.0;
+        private const double ENEMY_DESPAWN_CHECK_INTERVAL = 1.0;
+
+        private bool _useMultithreading = true;
+        private CancellationTokenSource _enemyProcessingCancellation;
+        private Task _enemyProcessingTask;
+        private ConcurrentQueue<Enemy> _enemyUpdateQueue;
+        private object _enemiesLock = new object();
+        private int _maxEnemiesPerThread = 20;
+        private int _processingThreadCount = 0;
 
         public GameManager(Canvas gameCanvas, Player player, double gameWidth, double gameHeight, SpriteManager spriteManager = null)
         {
@@ -69,56 +84,82 @@ namespace GunVault.GameEngine
             _enemySpawnRate = INITIAL_SPAWN_RATE;
             _lastWeaponType = _player.GetWeaponType();
             
-            // Создаем мировой контейнер
+            _enemyUpdateQueue = new ConcurrentQueue<Enemy>();
+            _enemyProcessingCancellation = new CancellationTokenSource();
+            
             _worldContainer = new Canvas
             {
                 Width = _gameWidth * WORLD_SIZE_MULTIPLIER,
                 Height = _gameHeight * WORLD_SIZE_MULTIPLIER
             };
             
-            // Инициализируем размеры мира
             _worldWidth = _gameWidth * WORLD_SIZE_MULTIPLIER;
             _worldHeight = _gameHeight * WORLD_SIZE_MULTIPLIER;
             
-            // Добавляем мировой контейнер на игровой канвас
             _gameCanvas.Children.Add(_worldContainer);
             
-            // Инициализируем камеру
             _camera = new Camera(_gameWidth, _gameHeight, _worldWidth, _worldHeight);
             
-            // Центрируем камеру на игроке
             _camera.CenterOn(_player.X, _player.Y);
             
-            // Установим начальную позицию мирового контейнера, чтобы игрок был в центре экрана
             Canvas.SetLeft(_worldContainer, -_camera.X);
             Canvas.SetTop(_worldContainer, -_camera.Y);
             
-            // Перемещаем игрока из GameCanvas в мировой контейнер
             _gameCanvas.Children.Remove(_player.PlayerShape);
             _worldContainer.Children.Add(_player.PlayerShape);
             
             _player.AddWeaponToCanvas(_worldContainer);
             
+            _chunkManager = new ChunkManager(_worldContainer);
+            
             _levelGenerator = new LevelGenerator(_worldContainer, _worldWidth, _worldHeight, _spriteManager);
             _levelGenerator.GenerateLevel();
+            
+            InitializeChunks();
+            
+            _chunkManager.EnemiesReadyToRestore += OnEnemiesReadyToRestore;
+
+            if (_useMultithreading)
+            {
+                StartEnemyProcessingTask();
+                Console.WriteLine("Многопоточная обработка врагов активирована");
+            }
+        }
+        
+        private void InitializeChunks()
+        {
+            Dictionary<string, RectCollider> tileColliders = _levelGenerator.GetTileColliders();
+            
+            foreach (var colliderPair in tileColliders)
+            {
+                _chunkManager.AddTileCollider(colliderPair.Key, colliderPair.Value);
+            }
+            
+            _chunkManager.UpdateActiveChunks(_player.X, _player.Y);
+            
+            Console.WriteLine($"Инициализированы чанки и распределены тайлы");
         }
 
         public void Update(double deltaTime)
         {
             _player.Move();
             
-            // Удаляем ограничение игрока на экране, теперь можно двигаться по всему миру
-            // _player.ConstrainToScreen(_gameWidth, _gameHeight);
-            
-            // Вместо этого, ограничиваем игрока размерами мира
             _player.ConstrainToWorldBounds(0, 0, _worldWidth, _worldHeight);
             
-            // Обновляем позицию камеры, чтобы следовать за игроком
             _camera.FollowTarget(_player.X, _player.Y);
             
-            // Обновляем позицию мирового контейнера относительно камеры
             Canvas.SetLeft(_worldContainer, -_camera.X);
             Canvas.SetTop(_worldContainer, -_camera.Y);
+            
+            _chunkManager.UpdateActiveChunks(_player.X, _player.Y, _player.VelocityX, _player.VelocityY);
+            _chunkManager.UpdateChunkMarkers();
+            
+            _enemyDespawnCheckTimer -= deltaTime;
+            if (_enemyDespawnCheckTimer <= 0)
+            {
+                RemoveEnemiesInStaleChunks();
+                _enemyDespawnCheckTimer = ENEMY_DESPAWN_CHECK_INTERVAL;
+            }
             
             CheckWeaponUpgrade();
             _enemySpawnTimer -= deltaTime;
@@ -143,12 +184,11 @@ namespace GunVault.GameEngine
                 targetPoint = new Point(nearestEnemy.X, nearestEnemy.Y);
             }
             
-            // Обновляем врагов только если они видны в области камеры или рядом
             foreach (var enemy in _enemies)
             {
                 bool isInViewOrNear = _camera.IsInView(
                     enemy.X - 50, enemy.Y - 50, 
-                    100, 100  // Размер, немного увеличенный для захвата ближайших врагов
+                    100, 100
                 );
                 
                 if (isInViewOrNear)
@@ -157,12 +197,10 @@ namespace GunVault.GameEngine
                 }
             }
             
-            // Обрабатываем ввод мыши и клавиатуры для оружия
             Point mousePosition = Mouse.GetPosition(_gameCanvas);
             Point worldMousePosition = _camera.ScreenToWorld(mousePosition.X, mousePosition.Y);
             _player.UpdateWeapon(deltaTime, worldMousePosition);
             
-            // Стрельба игрока
             if (_player.GetCurrentWeapon().IsLaser)
             {
                 LaserBeam newLaser = _player.ShootLaser(worldMousePosition);
@@ -195,6 +233,16 @@ namespace GunVault.GameEngine
             CheckCollisions();
         }
 
+        public void HandleKeyPress(KeyEventArgs e)
+        {
+            if (e.Key == Key.F3)
+            {
+                _showChunkBoundaries = !_showChunkBoundaries;
+                _chunkManager.ToggleChunkBoundaries(_showChunkBoundaries);
+                Console.WriteLine($"Отображение границ чанков: {(_showChunkBoundaries ? "включено" : "выключено")}");
+            }
+        }
+
         private void CheckWeaponUpgrade()
         {
             WeaponType currentType = _player.GetWeaponType();
@@ -206,14 +254,6 @@ namespace GunVault.GameEngine
                 _player.ChangeWeapon(newWeapon, _worldContainer);
                 _lastWeaponType = expectedType;
                 WeaponChanged?.Invoke(this, newWeapon.Name);
-            }
-        }
-
-        public void HandleKeyPress(KeyEventArgs e)
-        {
-            if (e.Key == Key.R)
-            {
-                _player.StartReload();
             }
         }
 
@@ -259,13 +299,11 @@ namespace GunVault.GameEngine
 
         private void SpawnEnemy()
         {
-            // Модифицируем код для спавна врагов, чтобы они появлялись за пределами видимой области камеры,
-            // но все еще внутри игрового мира
             double spawnX = 0, spawnY = 0;
             bool foundValidSpawn = false;
             
             // Максимальное количество попыток найти проходимую позицию
-            int maxAttempts = 30; // Увеличиваем количество попыток для повышения шансов найти подходящее место
+            int maxAttempts = 30;
             int attempts = 0;
             
             // Получаем границы видимой области камеры
@@ -274,62 +312,72 @@ namespace GunVault.GameEngine
             double cameraRight = _camera.X + _camera.ViewportWidth;
             double cameraBottom = _camera.Y + _camera.ViewportHeight;
             
-            // Добавляем небольшой буфер, чтобы враги появлялись вне экрана
+            // Буфер расстояния от края экрана
             double buffer = 100;
             
             // Примерный радиус врага для проверки
             double enemyRadius = 20;
             
-            // Создаем временный коллайдер, который будет использоваться для проверки области спавна
+            // Временный коллайдер для проверки
             RectCollider tempCollider = null;
+            
+            // Активные чанки для спавна
+            List<Chunk> activeChunks = _chunkManager.GetActiveChunks();
+            
+            // Если нет активных чанков (что мало вероятно), не спавним врага
+            if (activeChunks.Count == 0)
+            {
+                Console.WriteLine("Не удалось создать врага: нет активных чанков");
+                return;
+            }
+            
+            // Сохраняем чанк, в котором будет создан враг
+            Chunk? spawnChunk = null;
             
             while (!foundValidSpawn && attempts < maxAttempts)
             {
                 attempts++;
                 
-                if (_random.NextDouble() < 0.5)
+                // Выбираем случайный активный чанк для спавна
+                spawnChunk = activeChunks[_random.Next(activeChunks.Count)];
+                
+                // Не спавним в чанке, где находится игрок
+                var (playerChunkX, playerChunkY) = Chunk.WorldToChunk(_player.X, _player.Y);
+                if (spawnChunk.ChunkX == playerChunkX && spawnChunk.ChunkY == playerChunkY)
                 {
-                    // Спавн слева или справа от области просмотра
-                    spawnX = _random.NextDouble() < 0.5 ? 
-                        Math.Max(enemyRadius, cameraLeft - buffer) : 
-                        Math.Min(_worldWidth - enemyRadius, cameraRight + buffer);
-                    
-                    // Случайная Y-координата в диапазоне видимой области (с небольшим расширением)
-                    spawnY = _random.NextDouble() * (_camera.ViewportHeight + buffer * 2) + 
-                        Math.Max(enemyRadius, cameraTop - buffer);
-                    spawnY = Math.Min(spawnY, _worldHeight - enemyRadius);
-                }
-                else
-                {
-                    // Спавн сверху или снизу от области просмотра
-                    spawnX = _random.NextDouble() * (_camera.ViewportWidth + buffer * 2) + 
-                        Math.Max(enemyRadius, cameraLeft - buffer);
-                    spawnX = Math.Min(spawnX, _worldWidth - enemyRadius);
-                    
-                    spawnY = _random.NextDouble() < 0.5 ? 
-                        Math.Max(enemyRadius, cameraTop - buffer) : 
-                        Math.Min(_worldHeight - enemyRadius, cameraBottom + buffer);
+                    continue;
                 }
                 
+                // Определяем позицию спавна внутри выбранного чанка
+                double chunkLeft = spawnChunk.WorldX;
+                double chunkTop = spawnChunk.WorldY;
+                double spawnAreaWidth = spawnChunk.PixelSize;
+                double spawnAreaHeight = spawnChunk.PixelSize;
+                
+                // Небольшое смещение от края чанка
+                double margin = 20;
+                
+                // Получаем случайную позицию внутри выбранного чанка
+                spawnX = chunkLeft + margin + _random.NextDouble() * (spawnAreaWidth - 2 * margin);
+                spawnY = chunkTop + margin + _random.NextDouble() * (spawnAreaHeight - 2 * margin);
+                
                 // Создаем временный коллайдер для проверки проходимости области
-                // Используем настоящий размер коллайдера врага
                 if (tempCollider == null)
                 {
-                    double colliderSize = enemyRadius * 2 * 0.8; // Примерный размер коллайдера, соответствующий Enemy.Collider
+                    double colliderSize = enemyRadius * 2 * 0.8;
                     tempCollider = new RectCollider(spawnX - colliderSize/2, spawnY - colliderSize/2, colliderSize, colliderSize);
                 }
                 else
                 {
-                    // Обновляем позицию существующего коллайдера
                     tempCollider.UpdatePosition(spawnX - tempCollider.Width/2, spawnY - tempCollider.Height/2);
                 }
                 
-                // Проверяем проходимость точек по окружности, а также используем IsAreaWalkable для точной проверки коллизий
+                // Проверяем проходимость точек и коллизии
                 if (_levelGenerator != null)
                 {
                     bool centerWalkable = _levelGenerator.IsTileWalkable(spawnX, spawnY);
                     
-                    // Проверяем 8 точек по окружности с радиусом enemyRadius * 0.8 (примерный коллайдер)
+                    // Проверяем 8 точек по окружности
                     bool allPointsWalkable = true;
                     double checkRadius = enemyRadius * 0.8;
                     
@@ -345,87 +393,96 @@ namespace GunVault.GameEngine
                         }
                     }
                     
-                    // Используем дополнительно IsAreaWalkable для более точной проверки коллизий
+                    // Используем IsAreaWalkable для точной проверки коллизий
                     bool areaWalkable = _levelGenerator.IsAreaWalkable(tempCollider);
                     
-                    // Все проверки должны быть успешными
                     if (centerWalkable && allPointsWalkable && areaWalkable)
                     {
                         foundValidSpawn = true;
-                        
-                        // Для отладки
-                        Console.WriteLine($"Найдена валидная позиция для спавна на попытке {attempts}: ({spawnX:F1}, {spawnY:F1})");
+                        Console.WriteLine($"Найдена валидная позиция для спавна в чанке {spawnChunk.ChunkX}:{spawnChunk.ChunkY} на попытке {attempts}: ({spawnX:F1}, {spawnY:F1})");
                     }
                 }
             }
             
-            // Если мы не нашли проходимое место после всех попыток, 
-            // найдем 100% безопасное место для спавна
+            // Если не нашли место после всех попыток, используем фоллбэк метод
             if (!foundValidSpawn)
             {
-                Console.WriteLine($"Не удалось найти проходимую позицию для спавна за {maxAttempts} попыток, ищем безопасное место");
+                Console.WriteLine("Не удалось найти проходимую позицию для спавна, ищем безопасное место вне чанка игрока");
                 
-                // Ищем гарантированно проходимые области - начинаем с позиции игрока
-                double searchRadius = 300; // Большой радиус поиска
+                // Получаем чанк игрока
+                var (playerChunkX, playerChunkY) = Chunk.WorldToChunk(_player.X, _player.Y);
                 
-                // Сначала проверим центр экрана - часто там проходимо
-                spawnX = _camera.X + _camera.ViewportWidth / 2;
-                spawnY = _camera.Y + _camera.ViewportHeight / 2;
-                
-                // Обновляем позицию коллайдера
-                tempCollider.UpdatePosition(spawnX - tempCollider.Width/2, spawnY - tempCollider.Height/2);
-                
-                // Если центр экрана непроходим, ищем по спирали вокруг игрока
-                if (!_levelGenerator.IsAreaWalkable(tempCollider))
+                // Перебираем все чанки вокруг игрока, но не сам чанк игрока
+                for (int y = playerChunkY - ChunkManager.ACTIVATION_DISTANCE; y <= playerChunkY + ChunkManager.ACTIVATION_DISTANCE; y++)
                 {
-                    bool found = false;
-                    
-                    // Начинаем от игрока и расходимся спиралью
-                    for (int r = 1; r <= 20 && !found; r++)
+                    for (int x = playerChunkX - ChunkManager.ACTIVATION_DISTANCE; x <= playerChunkX + ChunkManager.ACTIVATION_DISTANCE; x++)
                     {
-                        double step = Math.PI / 8; // 16 точек на круге
+                        // Пропускаем чанк игрока
+                        if (x == playerChunkX && y == playerChunkY)
+                            continue;
+                            
+                        // Получаем мировые координаты центра чанка
+                        var (worldX, worldY) = Chunk.ChunkToWorld(x, y);
+                        worldX += Chunk.CHUNK_SIZE * TileSettings.TILE_SIZE / 2;
+                        worldY += Chunk.CHUNK_SIZE * TileSettings.TILE_SIZE / 2;
                         
-                        for (double angle = 0; angle < 2 * Math.PI && !found; angle += step)
+                        // Проверяем проходимость центра чанка
+                        tempCollider.UpdatePosition(worldX - tempCollider.Width/2, worldY - tempCollider.Height/2);
+                        
+                        if (_levelGenerator.IsTileWalkable(worldX, worldY) && _levelGenerator.IsAreaWalkable(tempCollider))
                         {
-                            double testX = _player.X + Math.Cos(angle) * (r * searchRadius / 10);
-                            double testY = _player.Y + Math.Sin(angle) * (r * searchRadius / 10);
-                            
-                            // Ограничиваем координаты границами мира
-                            testX = Math.Max(enemyRadius, Math.Min(testX, _worldWidth - enemyRadius));
-                            testY = Math.Max(enemyRadius, Math.Min(testY, _worldHeight - enemyRadius));
-                            
-                            // Обновляем коллайдер
-                            tempCollider.UpdatePosition(testX - tempCollider.Width/2, testY - tempCollider.Height/2);
-                            
-                            if (_levelGenerator.IsAreaWalkable(tempCollider))
-                            {
-                                spawnX = testX;
-                                spawnY = testY;
-                                found = true;
-                                
-                                Console.WriteLine($"Найдена безопасная позиция для спавна при поиске по спирали: ({spawnX:F1}, {spawnY:F1})");
-                            }
+                            spawnX = worldX;
+                            spawnY = worldY;
+                            foundValidSpawn = true;
+                            spawnChunk = _chunkManager.GetOrCreateChunk(x, y);
+                            Console.WriteLine($"Найдено безопасное место в чанке {x}:{y}: ({spawnX:F1}, {spawnY:F1})");
+                            break;
                         }
                     }
                     
-                    // Если даже это не помогло, просто используем позицию игрока
-                    if (!found)
-                    {
-                        // В крайнем случае, просто спавним рядом с игроком с небольшим смещением
-                        spawnX = _player.X + (_random.NextDouble() * 200 - 100);
-                        spawnY = _player.Y + (_random.NextDouble() * 200 - 100);
-                        
-                        // Ограничиваем координаты границами мира
-                        spawnX = Math.Max(enemyRadius, Math.Min(spawnX, _worldWidth - enemyRadius));
-                        spawnY = Math.Max(enemyRadius, Math.Min(spawnY, _worldHeight - enemyRadius));
-                        
-                        Console.WriteLine($"Не удалось найти безопасное место, спавним рядом с игроком: ({spawnX:F1}, {spawnY:F1})");
-                    }
+                    if (foundValidSpawn) break;
                 }
-                else
+                
+                // Если все еще не нашли безопасное место, спавним за пределами экрана
+                if (!foundValidSpawn)
                 {
-                    Console.WriteLine($"Центр экрана оказался проходимым, спавним там: ({spawnX:F1}, {spawnY:F1})");
+                    // В крайнем случае, просто спавним за пределами экрана
+                    if (_random.NextDouble() < 0.5)
+                    {
+                        // Слева или справа от экрана
+                        spawnX = _random.NextDouble() < 0.5 ? 
+                            Math.Max(enemyRadius, cameraLeft - buffer) : 
+                            Math.Min(_worldWidth - enemyRadius, cameraRight + buffer);
+                        
+                        spawnY = _random.NextDouble() * (_camera.ViewportHeight + buffer * 2) + 
+                            Math.Max(enemyRadius, cameraTop - buffer);
+                        spawnY = Math.Min(spawnY, _worldHeight - enemyRadius);
+                    }
+                    else
+                    {
+                        // Сверху или снизу от экрана
+                        spawnX = _random.NextDouble() * (_camera.ViewportWidth + buffer * 2) + 
+                            Math.Max(enemyRadius, cameraLeft - buffer);
+                        spawnX = Math.Min(spawnX, _worldWidth - enemyRadius);
+                        
+                        spawnY = _random.NextDouble() < 0.5 ? 
+                            Math.Max(enemyRadius, cameraTop - buffer) : 
+                            Math.Min(_worldHeight - enemyRadius, cameraBottom + buffer);
+                    }
+                    
+                    Console.WriteLine($"Крайний случай: спавн за пределами экрана: ({spawnX:F1}, {spawnY:F1})");
+                    
+                    // Получаем или создаем чанк для этой позиции
+                    var (spawnChunkX, spawnChunkY) = Chunk.WorldToChunk(spawnX, spawnY);
+                    spawnChunk = _chunkManager.GetOrCreateChunk(spawnChunkX, spawnChunkY);
                 }
+            }
+            
+            // Если у нас есть чанк для спавна, гарантируем, что он активен
+            if (spawnChunk != null)
+            {
+                // Принудительно активируем чанк, чтобы враг не исчез сразу
+                spawnChunk.IsActive = true;
             }
             
             EnemyType enemyType = EnemyFactory.GetRandomEnemyTypeForScore(_score, _random);
@@ -627,11 +684,25 @@ namespace GunVault.GameEngine
             return _levelGenerator.IsTileWalkable(x, y);
         }
 
+        /// <summary>
+        /// Получает коллайдеры тайлов около указанной позиции
+        /// </summary>
+        /// <param name="x">Координата X</param>
+        /// <param name="y">Координата Y</param>
+        /// <returns>Словарь с коллайдерами тайлов</returns>
+        public Dictionary<string, RectCollider> GetNearbyTileColliders(double x, double y)
+        {
+            // Теперь используем только коллайдеры из активных чанков
+            return _chunkManager.GetActiveChunkColliders();
+        }
+        
+        /// <summary>
+        /// Проверяет, является ли область проходимой
+        /// </summary>
+        /// <param name="playerCollider">Коллайдер игрока или другого объекта</param>
+        /// <returns>true, если область проходима</returns>
         public bool IsAreaWalkable(RectCollider playerCollider)
         {
-            if (_levelGenerator == null)
-                return true;
-            
             return _levelGenerator.IsAreaWalkable(playerCollider);
         }
 
@@ -696,6 +767,277 @@ namespace GunVault.GameEngine
                     _bulletImpactEffects.RemoveAt(i);
                 }
             }
+        }
+
+        /// <summary>
+        /// Возвращает менеджер чанков для внешнего доступа
+        /// </summary>
+        public ChunkManager GetChunkManager()
+        {
+            return _chunkManager;
+        }
+
+        /// <summary>
+        /// Включает/выключает отображение границ чанков
+        /// </summary>
+        public void ToggleChunkBoundaries()
+        {
+            _showChunkBoundaries = !_showChunkBoundaries;
+            _chunkManager.ToggleChunkBoundaries(_showChunkBoundaries);
+        }
+
+        /// <summary>
+        /// Удаляет врагов, находящихся в устаревших неактивных чанках
+        /// </summary>
+        private void RemoveEnemiesInStaleChunks()
+        {
+            // Если нет врагов, нечего удалять
+            if (_enemies.Count == 0) return;
+            
+            // Минимальное время с момента создания врага, после которого его можно удалять из неактивного чанка
+            TimeSpan minimumEnemyLifetime = TimeSpan.FromSeconds(3.0);
+            
+            // Время бездействия чанка, после которого враги в нём удаляются
+            TimeSpan staleTime = TimeSpan.FromSeconds(ENEMY_DESPAWN_TIME);
+            
+            List<Enemy> enemiesToRemove = new List<Enemy>();
+            DateTime now = DateTime.Now;
+            
+            // Проходим по всем врагам
+            foreach (var enemy in _enemies)
+            {
+                // Проверяем, находится ли враг в устаревшем неактивном чанке
+                // И если враг существует достаточно долго
+                if (enemy.CreationTime.Add(minimumEnemyLifetime) < now && 
+                    _chunkManager.IsInInactiveStaleChunk(enemy.X, enemy.Y, staleTime))
+                {
+                    enemiesToRemove.Add(enemy);
+                }
+            }
+            
+            // Вместо удаления, сохраняем состояние врагов и затем удаляем их
+            if (enemiesToRemove.Count > 0)
+            {
+                foreach (var enemy in enemiesToRemove)
+                {
+                    // Создаем объект состояния врага
+                    string spriteName = GetEnemySpriteName(enemy.Type);
+                    EnemyState enemyState = EnemyState.CreateFromEnemy(enemy, spriteName);
+                    
+                    // Кэшируем состояние врага в соответствующем чанке
+                    _chunkManager.CacheEnemyState(enemyState);
+                    
+                    // Удаляем враждебный объект с экрана
+                    _worldContainer.Children.Remove(enemy.EnemyShape);
+                    _worldContainer.Children.Remove(enemy.HealthBar);
+                    _enemies.Remove(enemy);
+                }
+                
+                Console.WriteLine($"Кэшировано {enemiesToRemove.Count} врагов из устаревших неактивных чанков.");
+            }
+        }
+        
+        /// <summary>
+        /// Возвращает имя спрайта врага по его типу
+        /// </summary>
+        private string GetEnemySpriteName(EnemyType enemyType)
+        {
+            switch (enemyType)
+            {
+                case EnemyType.Basic:
+                    return "enemy1";
+                case EnemyType.Runner:
+                    return "enemy2";
+                case EnemyType.Tank:
+                    return "enemy1"; // Использовать соответствующий спрайт
+                case EnemyType.Bomber:
+                    return "enemy1"; // Использовать соответствующий спрайт
+                case EnemyType.Boss:
+                    return "enemy1"; // Использовать соответствующий спрайт
+                default:
+                    return "enemy1";
+            }
+        }
+        
+        /// <summary>
+        /// Восстанавливает врагов из их кэшированных состояний
+        /// </summary>
+        private void RestoreEnemiesFromState(List<EnemyState> enemyStates)
+        {
+            foreach (var state in enemyStates)
+            {
+                // Создаем нового врага на основе сохраненного состояния
+                Enemy enemy = EnemyFactory.CreateEnemy(
+                    type: state.Type,
+                    x: state.X,
+                    y: state.Y,
+                    scoreLevel: _score,
+                    spriteManager: _spriteManager
+                );
+                
+                // Восстанавливаем сохраненные параметры врага
+                if (enemy.TakeDamage(enemy.MaxHealth - state.Health))
+                {
+                    // Добавляем врага в игру
+                    _enemies.Add(enemy);
+                    
+                    // Добавляем визуальные элементы врага на экран
+                    _worldContainer.Children.Add(enemy.EnemyShape);
+                    _worldContainer.Children.Add(enemy.HealthBar);
+                    
+                    enemy.UpdatePosition();
+                    
+                    Console.WriteLine($"Восстановлен враг типа {state.Type} на позиции {state.X}, {state.Y}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Запускает задачу обработки врагов в отдельном потоке
+        /// </summary>
+        private void StartEnemyProcessingTask()
+        {
+            if (_enemyProcessingTask != null && !_enemyProcessingTask.IsCompleted)
+            {
+                return; // Задача уже запущена
+            }
+
+            _enemyProcessingCancellation = new CancellationTokenSource();
+            
+            _enemyProcessingTask = Task.Run(() => 
+            {
+                Console.WriteLine("Запущена многопоточная обработка врагов");
+                
+                try
+                {
+                    while (!_enemyProcessingCancellation.Token.IsCancellationRequested)
+                    {
+                        ProcessEnemiesInThreads();
+                        
+                        // Небольшая пауза для синхронизации с основным циклом
+                        Thread.Sleep(10);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Задача отменена, выходим нормально
+                    Console.WriteLine("Многопоточная обработка врагов отменена");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Ошибка в обработке врагов: {ex.Message}");
+                }
+            }, _enemyProcessingCancellation.Token);
+        }
+
+        /// <summary>
+        /// Обрабатывает врагов в нескольких потоках
+        /// </summary>
+        private void ProcessEnemiesInThreads()
+        {
+            // Если потоки уже работают над врагами, пропускаем
+            if (Interlocked.CompareExchange(ref _processingThreadCount, 0, 0) > 0)
+                return;
+        
+            List<Enemy> enemiesCopy;
+        
+            // Копируем список врагов для безопасной работы
+            lock (_enemiesLock)
+            {
+                if (_enemies.Count == 0)
+                    return;
+            
+                enemiesCopy = new List<Enemy>(_enemies);
+            }
+        
+            // Вычисляем оптимальное количество потоков
+            int optimalThreadCount = Math.Max(1, Math.Min(
+                Environment.ProcessorCount - 1, 
+                (int)Math.Ceiling((double)enemiesCopy.Count / _maxEnemiesPerThread)
+            ));
+        
+            // Разбиваем врагов на группы
+            List<List<Enemy>> enemyGroups = new List<List<Enemy>>();
+            int groupSize = (int)Math.Ceiling((double)enemiesCopy.Count / optimalThreadCount);
+        
+            for (int i = 0; i < enemiesCopy.Count; i += groupSize)
+            {
+                int count = Math.Min(groupSize, enemiesCopy.Count - i);
+                enemyGroups.Add(enemiesCopy.GetRange(i, count));
+            }
+        
+            // Запускаем потоки для обработки групп врагов
+            Interlocked.Exchange(ref _processingThreadCount, enemyGroups.Count);
+        
+            // Запускаем задачи для каждой группы
+            foreach (var group in enemyGroups)
+            {
+                Task.Run(() => 
+                {
+                    try
+                    {
+                        // Получаем позицию игрока для вычислений
+                        double playerX = _player.X;
+                        double playerY = _player.Y;
+                    
+                        foreach (var enemy in group)
+                        {
+                            // Проверяем, находится ли враг в поле зрения
+                            if (_camera.IsInViewExtended(enemy.X, enemy.Y, 200))
+                            {
+                                // Вычисляем следующую позицию врага
+                                enemy.MoveTowardsPlayer(playerX, playerY, 1.0 / 60.0); // фиксированный deltaTime
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        // Уменьшаем счетчик активных потоков
+                        Interlocked.Decrement(ref _processingThreadCount);
+                    }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Освобождает ресурсы и останавливает фоновые потоки
+        /// </summary>
+        public void Dispose()
+        {
+            // Отменяем задачу обработки врагов
+            if (_enemyProcessingCancellation != null)
+            {
+                _enemyProcessingCancellation.Cancel();
+                
+                try
+                {
+                    // Ждем завершения задачи, но не более 1 секунды
+                    if (_enemyProcessingTask != null)
+                        _enemyProcessingTask.Wait(1000);
+                }
+                catch { }
+                
+                _enemyProcessingCancellation.Dispose();
+                _enemyProcessingCancellation = null;
+            }
+            
+            // Отписываемся от события восстановления врагов
+            if (_chunkManager != null)
+            {
+                _chunkManager.EnemiesReadyToRestore -= OnEnemiesReadyToRestore;
+                _chunkManager.Dispose();
+            }
+            
+            Console.WriteLine("GameManager ресурсы освобождены");
+        }
+
+        /// <summary>
+        /// Обработчик события восстановления врагов
+        /// </summary>
+        private void OnEnemiesReadyToRestore(object sender, ChunkEnemyRestoreEventArgs e)
+        {
+            // Восстанавливаем врагов из их состояний
+            RestoreEnemiesFromState(e.EnemiesToRestore);
         }
     }
 } 

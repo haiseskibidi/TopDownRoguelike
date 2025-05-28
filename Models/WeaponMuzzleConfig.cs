@@ -23,13 +23,13 @@ namespace GunVault.Models
         
         private static readonly Dictionary<WeaponType, MuzzleParams> MuzzleSettings = new Dictionary<WeaponType, MuzzleParams>
         {
-            { WeaponType.Pistol, new MuzzleParams(1.0, 0, 12) },
-            { WeaponType.Shotgun, new MuzzleParams(1.2, 0, 3) },
-            { WeaponType.AssaultRifle, new MuzzleParams(1.3, 0, -4) },
-            { WeaponType.Sniper, new MuzzleParams(1.5, 0, -2) },
-            { WeaponType.MachineGun, new MuzzleParams(1.2, 0, -5) },
-            { WeaponType.RocketLauncher, new MuzzleParams(1.1, 0, 12) },
-            { WeaponType.Laser, new MuzzleParams(1.2, 0, -3) }
+            { WeaponType.Pistol, new MuzzleParams(1.0, 50, 5) },
+            { WeaponType.Shotgun, new MuzzleParams(1.0, 50, 15) },
+            { WeaponType.AssaultRifle, new MuzzleParams(1.0, 30, 10) },
+            { WeaponType.Sniper, new MuzzleParams(1.0, 35, 5) },
+            { WeaponType.MachineGun, new MuzzleParams(1.0, 28, 8) },
+            { WeaponType.RocketLauncher, new MuzzleParams(1.0, 25, 15) },
+            { WeaponType.Laser, new MuzzleParams(1.0, 30, 7) }
         };
         
         public static MuzzleParams GetMuzzleParams(WeaponType weaponType)

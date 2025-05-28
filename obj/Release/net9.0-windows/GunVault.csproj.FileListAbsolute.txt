@@ -1,0 +1,4 @@
+C:\Users\Q1\Documents\gunvault\obj\Release\net9.0-windows\MainWindow.g.cs
+C:\Users\Q1\Documents\gunvault\obj\Release\net9.0-windows\App.g.cs
+C:\Users\Q1\Documents\gunvault\obj\Release\net9.0-windows\GunVault_MarkupCompile.cache
+C:\Users\Q1\Documents\gunvault\obj\Release\net9.0-windows\GunVault_MarkupCompile.lref

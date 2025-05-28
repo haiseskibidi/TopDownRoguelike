@@ -3,9 +3,6 @@ using System.Collections.Generic;
 
 namespace GunVault.GameEngine
 {
-    /// <summary>
-    /// Перечисление типов тайлов для генерации карты
-    /// </summary>
     public enum TileType
     {
         Grass = 0,
@@ -15,9 +12,6 @@ namespace GunVault.GameEngine
         Sand = 4
     }
     
-    /// <summary>
-    /// Информация о тайле - его тип, спрайт и проходимость
-    /// </summary>
     public class TileInfo
     {
         public TileType Type { get; set; }
@@ -34,15 +28,11 @@ namespace GunVault.GameEngine
         }
     }
     
-    /// <summary>
-    /// Класс с константами и настройками для тайлов
-    /// </summary>
     public static class TileSettings
     {
         public const int TILE_SIZE = 32;
         public const double TILE_OVERLAP = 1.0;
         
-        // Словарь информации о каждом типе тайла
         public static readonly Dictionary<TileType, TileInfo> TileInfos = new Dictionary<TileType, TileInfo>()
         {
             { TileType.Grass, new TileInfo(TileType.Grass, "grass1", true, true) },
@@ -52,4 +42,4 @@ namespace GunVault.GameEngine
             { TileType.Sand, new TileInfo(TileType.Sand, "sand1", true, true) }
         };
     }
-} 
+}

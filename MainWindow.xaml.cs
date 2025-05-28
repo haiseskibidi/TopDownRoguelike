@@ -5,6 +5,8 @@ using System.Windows.Input;
 using System.Windows.Media.Animation;
 using GunVault.Models;
 using GunVault.GameEngine;
+using System.Threading.Tasks;
+using System.Threading;
 
 namespace GunVault;
 
@@ -26,12 +28,24 @@ public partial class MainWindow : Window
     // Флаг для отображения информации о размерах мира
     private bool _showDebugInfo = false;
     
+    // Переменные для экрана загрузки
+    private Task? _preloadTask;
+    private CancellationTokenSource? _preloadCancellation;
+    private int _totalChunksToLoad = 0;
+    private int _loadedChunksCount = 0;
+    private const int PRELOAD_RADIUS = 3; // Радиус предзагрузки чанков вокруг игрока (в чанках)
+    private const int INITIAL_BUFFER_SIZE = 500; // Размер буферной зоны вокруг игрока (в пикселях)
+    private System.Windows.Threading.DispatcherTimer? _loadingAnimationTimer; // Таймер для анимации текста загрузки
+    
     public MainWindow()
     {
         InitializeComponent();
         
         // Инициализируем игру после загрузки окна
         Loaded += MainWindow_Loaded;
+        
+        // Добавляем обработчик закрытия окна
+        Closing += MainWindow_Closing;
     }
     
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -51,7 +65,17 @@ public partial class MainWindow : Window
                 _spriteManager = null;
             }
             
-            InitializeGame();
+            // Показываем экран загрузки
+            LoadingScreen.Visibility = Visibility.Visible;
+            LoadingStatusText.Text = "Инициализация игры...";
+            UpdateLoadingProgress(0);
+            
+            // Инициализируем и запускаем таймер анимации загрузки
+            InitializeLoadingAnimation();
+            
+            // Запускаем инициализацию игры с предзагрузкой в отдельном потоке
+            _preloadCancellation = new CancellationTokenSource();
+            _preloadTask = Task.Run(() => PreloadGame(_preloadCancellation.Token), _preloadCancellation.Token);
             
             // Инициализируем таймер для уведомлений
             _notificationTimer = new System.Windows.Threading.DispatcherTimer();
@@ -322,23 +346,283 @@ public partial class MainWindow : Window
 
     private void MainWindow_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        switch (e.Key)
+        // Обрабатываем клавиши только если игра инициализирована
+        if (_gameManager != null && _player != null)
         {
-            case System.Windows.Input.Key.W:
+            // Обработка клавиш движения
+            switch (e.Key)
+            {
+                case Key.W:
                 _player.MovingUp = true;
                 break;
-            case System.Windows.Input.Key.S:
+                case Key.S:
                 _player.MovingDown = true;
                 break;
-            case System.Windows.Input.Key.A:
+                case Key.A:
                 _player.MovingLeft = true;
                 break;
-            case System.Windows.Input.Key.D:
+                case Key.D:
                 _player.MovingRight = true;
                 break;
-            case System.Windows.Input.Key.R:
+            }
+            
+            // Обработка специальных клавиш
+            if (e.Key == Key.R)
+            {
                 _player.StartReload();
-                break;
+            }
+            // Переключаем отображение границ чанков
+            else if (e.Key == Key.F3)
+            {
+                _gameManager.ToggleChunkBoundaries();
+            }
+            
+            // Передаем событие нажатия клавиши в GameManager
+            _gameManager.HandleKeyPress(e);
+        }
+    }
+
+    private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+    {
+        // Останавливаем таймер анимации
+        _loadingAnimationTimer?.Stop();
+        _loadingAnimationTimer = null;
+        
+        // Отменяем задачу предзагрузки, если она выполняется
+        if (_preloadTask != null && !_preloadTask.IsCompleted)
+        {
+            _preloadCancellation?.Cancel();
+            try
+            {
+                _preloadTask.Wait(500); // Ждем не более 500 мс
+            }
+            catch { }
+        }
+        
+        // Освобождаем ресурсы при закрытии приложения
+        if (_gameManager != null)
+        {
+            _gameManager.Dispose();
+        }
+        
+        // Останавливаем игровой цикл
+        if (_gameLoop != null)
+        {
+            _gameLoop.Stop();
+        }
+        
+        // Освобождаем ресурсы менеджера чанков
+        if (_gameManager?._levelGenerator != null)
+        {
+            var chunkManager = _gameManager.GetChunkManager();
+            if (chunkManager != null)
+            {
+                (chunkManager as IDisposable)?.Dispose();
+            }
+        }
+        
+        // Очищаем ресурсы предзагрузки
+        _preloadCancellation?.Dispose();
+        _preloadCancellation = null;
+        
+        Console.WriteLine("Ресурсы игры освобождены при закрытии приложения.");
+    }
+
+    /// <summary>
+    /// Предзагружает игру и чанки вокруг начальной позиции игрока
+    /// </summary>
+    private void PreloadGame(CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Шаг 1: Инициализация базовых игровых компонентов
+            Dispatcher.Invoke(() => {
+                LoadingStatusText.Text = "Инициализация игровых компонентов...";
+                UpdateLoadingProgress(5);
+            });
+            
+            // Рассчитываем размеры мира (в 3 раза больше экрана)
+            double worldWidth = 0, worldHeight = 0;
+            double centerX = 0, centerY = 0;
+            
+            Dispatcher.Invoke(() => {
+                worldWidth = GameCanvas.ActualWidth * 3.0;
+                worldHeight = GameCanvas.ActualHeight * 3.0;
+                centerX = worldWidth / 2;
+                centerY = worldHeight / 2;
+            });
+            
+            if (cancellationToken.IsCancellationRequested) return;
+            
+            // Шаг 2: Создание игрока
+            Dispatcher.Invoke(() => {
+                LoadingStatusText.Text = "Создание игрока...";
+                UpdateLoadingProgress(10);
+                
+                _player = new Player(centerX, centerY, _spriteManager);
+                _inputHandler = new InputHandler(_player);
+                GameCanvas.Children.Add(_player.PlayerShape);
+                _player.AddColliderVisualToCanvas(GameCanvas);
+            });
+            
+            if (cancellationToken.IsCancellationRequested) return;
+            
+            // Шаг 3: Инициализация менеджера игры
+            Dispatcher.Invoke(() => {
+                LoadingStatusText.Text = "Инициализация игрового мира...";
+                UpdateLoadingProgress(20);
+                
+                _gameManager = new GameManager(GameCanvas, _player, GameCanvas.ActualWidth, GameCanvas.ActualHeight, _spriteManager);
+                _gameManager.ScoreChanged += GameManager_ScoreChanged;
+                _gameManager.WeaponChanged += GameManager_WeaponChanged;
+            });
+            
+            if (cancellationToken.IsCancellationRequested) return;
+            
+            // Шаг 4: Предварительная загрузка чанков вокруг игрока
+            Dispatcher.Invoke(() => {
+                LoadingStatusText.Text = "Предзагрузка мира вокруг игрока...";
+                UpdateLoadingProgress(30);
+            });
+            
+            // Получаем менеджер чанков
+            ChunkManager chunkManager = _gameManager.GetChunkManager();
+            
+            // Определяем чанк игрока
+            var (playerChunkX, playerChunkY) = Chunk.WorldToChunk(centerX, centerY);
+            
+            // Рассчитываем общее количество чанков для загрузки
+            _totalChunksToLoad = (2 * PRELOAD_RADIUS + 1) * (2 * PRELOAD_RADIUS + 1);
+            _loadedChunksCount = 0;
+            
+            // Предзагружаем чанки в большой зоне вокруг игрока
+            for (int dy = -PRELOAD_RADIUS; dy <= PRELOAD_RADIUS; dy++)
+            {
+                for (int dx = -PRELOAD_RADIUS; dx <= PRELOAD_RADIUS; dx++)
+                {
+                    if (cancellationToken.IsCancellationRequested) return;
+                    
+                    int chunkX = playerChunkX + dx;
+                    int chunkY = playerChunkY + dy;
+                    
+                    // Создаем чанк и ждем его загрузки
+                    Chunk chunk = chunkManager.GetOrCreateChunk(chunkX, chunkY);
+                    
+                    // Определяем приоритет загрузки (ближние чанки - выше приоритет)
+                    int distance = Math.Max(Math.Abs(dx), Math.Abs(dy));
+                    int loadPriority = 10 * distance; // 0 для центрального чанка, больше для дальних
+                    
+                    // Активируем чанки рядом с игроком
+                    if (distance <= ChunkManager.ACTIVATION_DISTANCE)
+                    {
+                        chunk.IsActive = true;
+                    }
+                    
+                    // Имитируем ожидание загрузки чанка
+                    int waitTime = 10 + loadPriority; // Чем дальше чанк, тем дольше загрузка
+                    Thread.Sleep(waitTime);
+                    
+                    // Обновляем прогресс
+                    _loadedChunksCount++;
+                    int progressPercent = 30 + (int)(60.0 * _loadedChunksCount / _totalChunksToLoad);
+                    
+                    Dispatcher.Invoke(() => {
+                        UpdateLoadingProgress(progressPercent);
+                        LoadingStatusText.Text = $"Загружено чанков: {_loadedChunksCount}/{_totalChunksToLoad}";
+                    });
+                }
+            }
+            
+            if (cancellationToken.IsCancellationRequested) return;
+            
+            // Шаг 5: Завершение инициализации
+            Dispatcher.Invoke(() => {
+                LoadingStatusText.Text = "Запуск игрового цикла...";
+                UpdateLoadingProgress(95);
+                
+                // Инициализируем игровой цикл
+                _gameLoop = new GameLoop(_gameManager, GameCanvas.ActualWidth, GameCanvas.ActualHeight);
+                _gameLoop.GameTick += GameLoop_GameTick;
+                
+                // Обновляем активные чанки вокруг игрока
+                _gameManager.GetChunkManager().UpdateActiveChunks(_player.X, _player.Y, _player.VelocityX, _player.VelocityY);
+                
+                LoadingStatusText.Text = "Загрузка завершена!";
+                UpdateLoadingProgress(100);
+            });
+            
+            // Небольшая пауза, чтобы показать 100% загрузки
+            Thread.Sleep(500);
+            
+            // Запускаем игру в UI потоке
+            Dispatcher.Invoke(() => {
+                // Останавливаем таймер анимации
+                _loadingAnimationTimer?.Stop();
+                
+                // Скрываем экран загрузки
+                LoadingScreen.Visibility = Visibility.Collapsed;
+                
+                // Запускаем игровой цикл
+                _gameLoop.Start();
+                
+                // Фокус на канвас для обработки ввода
+                GameCanvas.Focus();
+                
+                // Обновляем информацию об игроке
+                UpdatePlayerInfo();
+                
+                Console.WriteLine("Игра успешно инициализирована");
+            });
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.Invoke(() => {
+                MessageBox.Show($"Ошибка при инициализации игры: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                Console.WriteLine($"Ошибка при инициализации игры: {ex}");
+                
+                // Скрываем экран загрузки при ошибке
+                LoadingScreen.Visibility = Visibility.Collapsed;
+            });
+        }
+    }
+
+    /// <summary>
+    /// Обновляет отображаемый прогресс загрузки
+    /// </summary>
+    private void UpdateLoadingProgress(int percent)
+    {
+        LoadingProgressBar.Value = percent;
+        LoadingProgressText.Text = $"{percent}%";
+    }
+
+    /// <summary>
+    /// Инициализирует и запускает анимацию текста загрузки
+    /// </summary>
+    private void InitializeLoadingAnimation()
+    {
+        _loadingAnimationTimer = new System.Windows.Threading.DispatcherTimer();
+        _loadingAnimationTimer.Tick += LoadingAnimation_Tick;
+        _loadingAnimationTimer.Interval = TimeSpan.FromMilliseconds(500); // Обновление каждые 500 мс
+        _loadingAnimationTimer.Start();
+    }
+
+    /// <summary>
+    /// Обрабатывает тик таймера анимации загрузки
+    /// </summary>
+    private int _animationDotCount = 0;
+    private void LoadingAnimation_Tick(object sender, EventArgs e)
+    {
+        if (LoadingStatusText.Text.EndsWith("..."))
+        {
+            // Обрезаем многоточие
+            string baseText = LoadingStatusText.Text.Substring(0, LoadingStatusText.Text.Length - 3);
+            LoadingStatusText.Text = baseText;
+            _animationDotCount = 0;
+        }
+        else
+        {
+            _animationDotCount++;
+            LoadingStatusText.Text += ".";
         }
     }
 }

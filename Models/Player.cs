@@ -14,16 +14,9 @@ namespace GunVault.Models
         private const double PLAYER_SPEED = 5.0;
         private const double PLAYER_RADIUS = 15.0;
         private const double PLAYER_ROTATION_SPEED = 10.0;
-        
-        // Определяем фиксированные размеры для всех спрайтов игрока
         private const double FIXED_SPRITE_WIDTH = 60.0;
         private const double FIXED_SPRITE_HEIGHT = 40.0;
-        
-        // Константа для смещения точки вращения спрайта (в процентах от ширины)
-        // 0.0 - крайняя левая точка, 0.5 - центр, 1.0 - крайняя правая точка
         private const double ROTATION_POINT_OFFSET = 0.25;
-        
-        // Оставляем эти константы, но они будут использоваться только для базовой формы
         private const double BASE_SPRITE_WIDTH = 46.0;
         private const double BASE_SPRITE_HEIGHT = 32.0;
         private const double TARGET_SPRITE_HEIGHT = PLAYER_RADIUS * 2.5;
@@ -34,13 +27,15 @@ namespace GunVault.Models
         public double MaxHealth { get; private set; }
         public UIElement PlayerShape { get; private set; }
         public Weapon CurrentWeapon { get; private set; }
-        public RectCollider Collider { get; private set; } // Изменено с CircleCollider на RectCollider
-        public Rectangle ColliderVisual { get; private set; } // Визуализация коллайдера для отладки
+        public RectCollider Collider { get; private set; }
+        public Rectangle ColliderVisual { get; private set; }
         
         public bool MovingUp { get; set; }
         public bool MovingDown { get; set; }
         public bool MovingLeft { get; set; }
         public bool MovingRight { get; set; }
+        public double VelocityX { get; private set; }
+        public double VelocityY { get; private set; }
         
         private double _currentAngle = 0;
         private double _targetAngle = 0;
@@ -59,7 +54,6 @@ namespace GunVault.Models
             MaxHealth = 100;
             Health = MaxHealth;
             
-            // Инициализируем коллайдер
             InitializeCollider();
             
             if (spriteManager != null)
@@ -85,25 +79,16 @@ namespace GunVault.Models
             Console.WriteLine($"Игрок создан с фиксированным размером спрайта: {FIXED_SPRITE_WIDTH}x{FIXED_SPRITE_HEIGHT}");
         }
         
-        /// <summary>
-        /// Инициализирует коллайдер игрока с фиксированным размером
-        /// </summary>
         private void InitializeCollider()
         {
-            // Используем фиксированный размер коллайдера
-            double colliderWidth = FIXED_SPRITE_WIDTH * 0.55; // Уменьшаем размер коллайдера на 30% от размера спрайта
+            double colliderWidth = FIXED_SPRITE_WIDTH * 0.55;
             double colliderHeight = FIXED_SPRITE_HEIGHT * 0.7;
-            
-            // Смещение для центрирования коллайдера относительно позиции игрока
             double offsetX = -colliderWidth / 2 - 15;
             double offsetY = -colliderHeight / 2;
             
             if (Collider == null)
             {
-                // Создаем коллайдер при первой инициализации
                 Collider = new RectCollider(X + offsetX, Y + offsetY, colliderWidth, colliderHeight);
-                
-                // Создаем визуализацию коллайдера для отладки
                 ColliderVisual = new Rectangle
                 {
                     Width = colliderWidth,
@@ -111,20 +96,18 @@ namespace GunVault.Models
                     Stroke = Brushes.Cyan,
                     StrokeThickness = 3,
                     Fill = new SolidColorBrush(Color.FromArgb(80, 0, 255, 255)),
-                    StrokeDashArray = new DoubleCollection { 2, 2 } // Пунктирная линия для отличия от других коллайдеров
+                    StrokeDashArray = new DoubleCollection { 2, 2 }
                 };
                 
                 Console.WriteLine($"Создан коллайдер размером: {colliderWidth}x{colliderHeight}");
             }
             else
             {
-                // Обновляем размеры и позицию существующего коллайдера
                 Collider.UpdatePosition(X + offsetX, Y + offsetY);
                 Collider.Width = colliderWidth;
                 Collider.Height = colliderHeight;
             }
             
-            // Обновляем визуализацию коллайдера
             if (ColliderVisual != null)
             {
                 Canvas.SetLeft(ColliderVisual, Collider.X);
@@ -134,28 +117,19 @@ namespace GunVault.Models
             }
         }
 
-        /// <summary>
-        /// Обновляет позицию коллайдера с учетом поворота спрайта
-        /// </summary>
         private void UpdateColliderPosition(bool isFlipped)
         {
-            // Используем общий метод для инициализации/обновления коллайдера
             InitializeCollider();
-            
-            // Для отладки
             Console.WriteLine($"Позиция игрока: ({X:F1}, {Y:F1}), позиция коллайдера: ({Collider.X:F1}, {Collider.Y:F1})");
             Console.WriteLine($"Фиксированный размер коллайдера: {Collider.Width:F1}x{Collider.Height:F1}");
         }
         
         private Tuple<double, double> CalculateSpriteSize(string spriteName)
         {
-            // Всегда возвращаем фиксированные размеры спрайта, сохраняя при этом пропорции
             if (SpriteProportions.TryGetValue(spriteName, out var originalProportions))
             {
                 double originalWidth = originalProportions.Item1;
                 double originalHeight = originalProportions.Item2;
-                
-                // Сохраняем соотношение сторон, но используем фиксированную высоту
                 double aspectRatio = originalWidth / originalHeight;
                 double adjustedWidth = FIXED_SPRITE_HEIGHT * aspectRatio;
                 
@@ -165,7 +139,6 @@ namespace GunVault.Models
                 return new Tuple<double, double>(adjustedWidth, FIXED_SPRITE_HEIGHT);
             }
             
-            // Для неизвестных спрайтов используем фиксированные размеры
             Console.WriteLine($"Используем стандартный размер для неизвестного спрайта {spriteName}: {FIXED_SPRITE_WIDTH}x{FIXED_SPRITE_HEIGHT}");
             return new Tuple<double, double>(FIXED_SPRITE_WIDTH, FIXED_SPRITE_HEIGHT);
         }
@@ -213,13 +186,11 @@ namespace GunVault.Models
                 Canvas.SetLeft(PlayerShape, X - actualWidth / 2);
                 Canvas.SetTop(PlayerShape, Y - actualHeight / 2);
                 
-                // Вычисляем смещенную точку вращения (1/4 ширины от левого края)
                 double rotationPointX = actualWidth * ROTATION_POINT_OFFSET;
-                double rotationPointY = actualHeight / 2; // Вертикально центрируем
+                double rotationPointY = actualHeight / 2;
                 
                 var rotateTransform = new RotateTransform(_currentAngle * 180 / Math.PI, rotationPointX, rotationPointY);
                 
-                // Определяем, когда спрайт отражается по вертикали
                 bool isFlipped = Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2;
                 
                 if (isFlipped)
@@ -236,16 +207,12 @@ namespace GunVault.Models
                     PlayerShape.RenderTransform = rotateTransform;
                 }
                 
-                // Обновляем коллайдер с учетом поворота и возможного отражения
                 UpdateColliderPosition(isFlipped);
             }
             else
             {
                 Canvas.SetLeft(PlayerShape, X - PLAYER_RADIUS);
                 Canvas.SetTop(PlayerShape, Y - PLAYER_RADIUS);
-                
-                // Для не-Image формы используем более простое смещение,
-                // но все равно вызываем UpdateColliderPosition для консистентности
                 UpdateColliderPosition(false);
             }
         }
@@ -292,6 +259,10 @@ namespace GunVault.Models
             if (MovingRight)
                 dx += PLAYER_SPEED;
             
+            // Сохраняем текущую скорость для использования в предварительной загрузке чанков
+            VelocityX = dx;
+            VelocityY = dy;
+            
             if (dx != 0 || dy != 0)
             {
                 // Нормализуем движение по диагонали
@@ -300,6 +271,10 @@ namespace GunVault.Models
                     double length = Math.Sqrt(dx * dx + dy * dy);
                     dx = dx / length * PLAYER_SPEED;
                     dy = dy / length * PLAYER_SPEED;
+                    
+                    // Обновляем нормализованную скорость
+                    VelocityX = dx;
+                    VelocityY = dy;
                 }
                 
                 // Реализуем продвинутую проверку с коллизиями и скользящими столкновениями
@@ -473,24 +448,31 @@ namespace GunVault.Models
                     spriteHeight = image.Height;
                 }
                 
-                double muzzleDistance = WeaponMuzzleConfig.GetMuzzleDistance(CurrentWeapon.Type, spriteHeight / 2.5);
+                // Расчет точки вылета пули относительно спрайта
+                double angle = _currentAngle;
+                bool isFlipped = Math.Abs(NormalizeAngle(angle)) > Math.PI / 2;
                 
+                // Вычисляем базовое смещение относительно центра игрока
+                double offsetX = muzzleParams.OffsetX;
                 double offsetY = muzzleParams.OffsetY;
-                bool isFlipped = Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2;
+                
+                // Корректируем смещение по Y при отражении спрайта
                 if (isFlipped)
                 {
                     offsetY = -offsetY;
                 }
                 
-                double offsetXRotated = muzzleParams.OffsetX * Math.Cos(_currentAngle) - offsetY * Math.Sin(_currentAngle);
-                double offsetYRotated = offsetY * Math.Cos(_currentAngle) + muzzleParams.OffsetX * Math.Sin(_currentAngle);
+                // Вычисляем смещение с учетом поворота
+                double rotatedOffsetX = offsetX * Math.Cos(angle) - offsetY * Math.Sin(angle);
+                double rotatedOffsetY = offsetY * Math.Cos(angle) + offsetX * Math.Sin(angle);
                 
-                double muzzleX = X + Math.Cos(_currentAngle) * muzzleDistance + offsetXRotated;
-                double muzzleY = Y + Math.Sin(_currentAngle) * muzzleDistance + offsetYRotated;
+                // Вычисляем итоговую позицию дула
+                double muzzleX = X + rotatedOffsetX;
+                double muzzleY = Y + rotatedOffsetY;
                 
                 string flipped = isFlipped ? "да" : "нет";
-                Console.WriteLine($"Выстрел из {CurrentWeapon.Name}, угол: {_currentAngle * 180 / Math.PI:F1}°, отражение: {flipped}");
-                Console.WriteLine($"Смещения: дистанция={muzzleDistance:F1}, Y_исходный={muzzleParams.OffsetY:F1}, Y_итоговый={offsetY:F1}");
+                Console.WriteLine($"Выстрел из {CurrentWeapon.Name}, угол: {angle * 180 / Math.PI:F1}°, отражение: {flipped}");
+                Console.WriteLine($"Смещения: X={offsetX:F1}, Y={offsetY:F1}, X_повернутый={rotatedOffsetX:F1}, Y_повернутый={rotatedOffsetY:F1}");
                 Console.WriteLine($"Позиция игрока: ({X:F1}, {Y:F1}), позиция дула: ({muzzleX:F1}, {muzzleY:F1})");
                 
                 return CurrentWeapon.Fire(muzzleX, muzzleY, targetPoint.X, targetPoint.Y);
@@ -517,24 +499,31 @@ namespace GunVault.Models
                 spriteHeight = image.Height;
             }
             
-            double muzzleDistance = WeaponMuzzleConfig.GetMuzzleDistance(CurrentWeapon.Type, spriteHeight / 2.5);
+            // Расчет точки вылета лазера относительно спрайта
+            double angle = _currentAngle;
+            bool isFlipped = Math.Abs(NormalizeAngle(angle)) > Math.PI / 2;
             
+            // Вычисляем базовое смещение относительно центра игрока
+            double offsetX = muzzleParams.OffsetX;
             double offsetY = muzzleParams.OffsetY;
-            bool isFlipped = Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2;
+            
+            // Корректируем смещение по Y при отражении спрайта
             if (isFlipped)
             {
                 offsetY = -offsetY;
             }
             
-            double offsetXRotated = muzzleParams.OffsetX * Math.Cos(_currentAngle) - offsetY * Math.Sin(_currentAngle);
-            double offsetYRotated = offsetY * Math.Cos(_currentAngle) + muzzleParams.OffsetX * Math.Sin(_currentAngle);
+            // Вычисляем смещение с учетом поворота
+            double rotatedOffsetX = offsetX * Math.Cos(angle) - offsetY * Math.Sin(angle);
+            double rotatedOffsetY = offsetY * Math.Cos(angle) + offsetX * Math.Sin(angle);
             
-            double muzzleX = X + Math.Cos(_currentAngle) * muzzleDistance + offsetXRotated;
-            double muzzleY = Y + Math.Sin(_currentAngle) * muzzleDistance + offsetYRotated;
+            // Вычисляем итоговую позицию дула
+            double muzzleX = X + rotatedOffsetX;
+            double muzzleY = Y + rotatedOffsetY;
             
             string flipped = isFlipped ? "да" : "нет";
-            Console.WriteLine($"Лазерный выстрел, угол: {_currentAngle * 180 / Math.PI:F1}°, отражение: {flipped}");
-            Console.WriteLine($"Смещения: дистанция={muzzleDistance:F1}, Y_исходный={muzzleParams.OffsetY:F1}, Y_итоговый={offsetY:F1}");
+            Console.WriteLine($"Лазерный выстрел, угол: {angle * 180 / Math.PI:F1}°, отражение: {flipped}");
+            Console.WriteLine($"Смещения: X={offsetX:F1}, Y={offsetY:F1}, X_повернутый={rotatedOffsetX:F1}, Y_повернутый={rotatedOffsetY:F1}");
             Console.WriteLine($"Позиция игрока: ({X:F1}, {Y:F1}), позиция дула: ({muzzleX:F1}, {muzzleY:F1})");
             
             return CurrentWeapon.FireLaser(muzzleX, muzzleY, targetPoint.X, targetPoint.Y);
