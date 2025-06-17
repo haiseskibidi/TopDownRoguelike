@@ -29,17 +29,19 @@ namespace GunVault.GameEngine
         private int _score;
         private double _enemySpawnTimer;
         private double _enemySpawnRate = 2.0;
+        private double _healthRegenTimer = 1.0; // Regenerate health every second
         private WeaponType _lastWeaponType;
         private const double INITIAL_SPAWN_RATE = 2.0;
         private const double MIN_SPAWN_RATE = 0.3;
         private const int SCORE_PER_SPAWN_RATE_DECREASE = 50;
         private const double SPAWN_RATE_DECREASE_STEP = 0.1;
         private const int SCORE_PER_MULTI_SPAWN = 200;
-        private const int MAX_ENEMIES_ON_SCREEN = 20;
+        private const int MAX_ENEMIES_ON_SCREEN = 10;
         private const double EXPLOSION_EXPANSION_SPEED = 150.0;
         private SpriteManager _spriteManager;
         public event EventHandler<int> ScoreChanged;
         public event EventHandler<string> WeaponChanged;
+        public event EventHandler<int> EnemyKilled;
 
         private ChunkManager _chunkManager;
         private bool _showChunkBoundaries = false;
@@ -63,7 +65,7 @@ namespace GunVault.GameEngine
         private Task _enemyProcessingTask;
         private ConcurrentQueue<Enemy> _enemyUpdateQueue;
         private object _enemiesLock = new object();
-        private int _maxEnemiesPerThread = 20;
+        private int _maxEnemiesPerThread = 10;
         private int _processingThreadCount = 0;
 
         public GameManager(Canvas gameCanvas, Player player, double gameWidth, double gameHeight, SpriteManager spriteManager = null)
@@ -144,6 +146,14 @@ namespace GunVault.GameEngine
         {
             _player.Move();
             
+            // Health Regeneration
+            _healthRegenTimer -= deltaTime;
+            if (_healthRegenTimer <= 0)
+            {
+                _player.Heal(_player.HealthRegen);
+                _healthRegenTimer = 1.0; // Reset timer
+            }
+
             _player.ConstrainToWorldBounds(0, 0, _worldWidth, _worldHeight);
             
             _camera.FollowTarget(_player.X, _player.Y);
@@ -507,8 +517,14 @@ namespace GunVault.GameEngine
         private int CalculateEnemiesToSpawn()
         {
             int baseEnemies = 1;
-            int additionalEnemies = _score / SCORE_PER_MULTI_SPAWN;
-            return Math.Min(baseEnemies + additionalEnemies, 5);
+            
+            // Используем квадратный корень для более плавного роста количества врагов
+            int additionalEnemies = (int)Math.Sqrt(_score / SCORE_PER_MULTI_SPAWN);
+            
+            // Ограничиваем максимальное количество врагов за один спавн
+            int maxSpawnCount = 4;
+            
+            return Math.Min(baseEnemies + additionalEnemies, maxSpawnCount);
         }
 
         private void UpdateBullets(double deltaTime)
@@ -526,80 +542,75 @@ namespace GunVault.GameEngine
 
         private void UpdateEnemies(double deltaTime)
         {
-            foreach (var enemy in _enemies)
-            {
-                enemy.MoveTowardsPlayer(_player.X, _player.Y, deltaTime);
-            }
+            // Этот метод будет использоваться для более сложной логики врагов в будущем
         }
 
         private void CheckCollisions()
         {
+            // Коллизии пуль с врагами и тайлами
             for (int i = _bullets.Count - 1; i >= 0; i--)
             {
-                bool bulletHitTile = false;
+                Bullet bullet = _bullets[i];
+                bool bulletRemoved = false;
+
+                // Проверка на столкновение с тайлами
                 if (_levelGenerator != null)
                 {
-                    var nearbyTileColliders = _levelGenerator.GetNearbyTileColliders(_bullets[i].X, _bullets[i].Y);
-                    
+                    var nearbyTileColliders = _levelGenerator.GetNearbyTileColliders(bullet.X, bullet.Y);
                     foreach (var tileCollider in nearbyTileColliders)
                     {
                         TileType tileType = _levelGenerator.GetTileTypeAt(tileCollider.Key);
-                        if (_bullets[i].CollidesWithTile(tileCollider.Value, tileType))
+                        if (bullet.CollidesWithTile(tileCollider.Value, tileType))
                         {
-                            BulletImpactEffect effect = new BulletImpactEffect(
-                                _bullets[i].X, 
-                                _bullets[i].Y, 
-                                Math.Atan2(_bullets[i].Y - _bullets[i].PrevY, _bullets[i].X - _bullets[i].PrevX),
-                                tileType,
-                                _worldContainer
-                            );
-                            _bulletImpactEffects.Add(effect);
-                            
-                            _worldContainer.Children.Remove(_bullets[i].BulletShape);
+                            _worldContainer.Children.Remove(bullet.BulletShape);
                             _bullets.RemoveAt(i);
-                            bulletHitTile = true;
+                            bulletRemoved = true;
+                            
+                            // Создаем взрыв, если пуля взрывная
+                            if (bullet.IsExplosive && bullet.ExplosionRadius > 0)
+                            {
+                                CreateExplosion(bullet.X, bullet.Y, bullet.ExplosionDamage, bullet.ExplosionRadius);
+                            }
+                            
                             break;
                         }
                     }
                 }
                 
-                if (bulletHitTile)
-                    continue;
+                if (bulletRemoved) continue;
                 
-                bool bulletHit = false;
+                // Проверка на столкновение с врагами
                 for (int j = _enemies.Count - 1; j >= 0; j--)
                 {
-                    if (_bullets[i].Collides(_enemies[j]))
+                    Enemy enemy = _enemies[j];
+                    if (bullet.Collides(enemy))
                     {
-                        Weapon currentWeapon = _player.GetCurrentWeapon();
-                        double damage = _bullets[i].Damage;
-                        bool isEnemyAlive = _enemies[j].TakeDamage(damage);
-                        if (currentWeapon.IsExplosive)
-                        {
-                            CreateExplosion(
-                                _enemies[j].X, 
-                                _enemies[j].Y, 
-                                damage * currentWeapon.ExplosionDamageMultiplier, 
-                                currentWeapon.ExplosionRadius
-                            );
-                        }
-                        _worldContainer.Children.Remove(_bullets[i].BulletShape);
+                        bool isEnemyAlive = enemy.TakeDamage(bullet.Damage);
+                        _worldContainer.Children.Remove(bullet.BulletShape);
                         _bullets.RemoveAt(i);
-                        bulletHit = true;
+                        bulletRemoved = true;
+
+                        // Создаем взрыв, если пуля взрывная
+                        if (bullet.IsExplosive && bullet.ExplosionRadius > 0)
+                        {
+                            CreateExplosion(bullet.X, bullet.Y, bullet.ExplosionDamage, bullet.ExplosionRadius);
+                        }
+
                         if (!isEnemyAlive)
                         {
-                            _score += _enemies[j].ScoreValue;
+                            _score += enemy.ScoreValue;
                             ScoreChanged?.Invoke(this, _score);
-                            _worldContainer.Children.Remove(_enemies[j].EnemyShape);
-                            _worldContainer.Children.Remove(_enemies[j].HealthBar);
+                            EnemyKilled?.Invoke(this, enemy.ExperienceValue);
+                            _worldContainer.Children.Remove(enemy.EnemyShape);
+                            _worldContainer.Children.Remove(enemy.HealthBar);
                             _enemies.RemoveAt(j);
                         }
                         break;
                     }
                 }
-                if (bulletHit)
-                    continue;
             }
+
+            // Коллизии взрывов с врагами
             for (int i = _explosions.Count - 1; i >= 0; i--)
             {
                 for (int j = _enemies.Count - 1; j >= 0; j--)
@@ -611,6 +622,7 @@ namespace GunVault.GameEngine
                         {
                             _score += _enemies[j].ScoreValue;
                             ScoreChanged?.Invoke(this, _score);
+                            EnemyKilled?.Invoke(this, _enemies[j].ExperienceValue);
                             _worldContainer.Children.Remove(_enemies[j].EnemyShape);
                             _worldContainer.Children.Remove(_enemies[j].HealthBar);
                             _enemies.RemoveAt(j);
@@ -618,22 +630,16 @@ namespace GunVault.GameEngine
                     }
                 }
             }
+
+            // Коллизии игрока с врагами
             for (int i = _enemies.Count - 1; i >= 0; i--)
             {
-                if (_enemies[i].CollidesWithPlayer(_player))
+                Enemy enemy = _enemies[i];
+                if (_player.Collider.Intersects(enemy.Collider))
                 {
-                    _player.TakeDamage(_enemies[i].DamageOnCollision);
-                    if (_enemies[i].Type == EnemyType.Bomber)
-                    {
-                        CreateExplosion(
-                            _enemies[i].X,
-                            _enemies[i].Y,
-                            _enemies[i].DamageOnCollision * 2,
-                            100
-                        );
-                    }
-                    _worldContainer.Children.Remove(_enemies[i].EnemyShape);
-                    _worldContainer.Children.Remove(_enemies[i].HealthBar);
+                    _player.TakeDamage(enemy.DamageOnCollision);
+                    _worldContainer.Children.Remove(enemy.EnemyShape);
+                    _worldContainer.Children.Remove(enemy.HealthBar);
                     _enemies.RemoveAt(i);
                 }
             }
@@ -667,6 +673,62 @@ namespace GunVault.GameEngine
                 // Перегенерируем уровень при значительном изменении размеров
                 _levelGenerator.ResizeLevel(_worldWidth, _worldHeight);
             }
+        }
+
+        /// <summary>
+        /// Обновляет ссылку на игрока после возрождения
+        /// </summary>
+        /// <param name="player">Новый объект игрока</param>
+        public void UpdatePlayer(Player player)
+        {
+            if (player != null)
+            {
+                _player = player;
+            }
+        }
+        
+        /// <summary>
+        /// Добавляет игрока в мировой контейнер
+        /// </summary>
+        /// <param name="player">Объект игрока</param>
+        public void AddPlayerToWorld(Player player)
+        {
+            if (player != null && _worldContainer != null)
+            {
+                // Добавляем игрока в мировой контейнер
+                _worldContainer.Children.Add(player.PlayerShape);
+                
+                // Добавляем оружие игрока в мировой контейнер
+                player.AddWeaponToCanvas(_worldContainer);
+                
+                // Обновляем позицию камеры, чтобы сфокусироваться на игроке
+                _camera.CenterOn(player.X, player.Y);
+                
+                // Обновляем положение мирового контейнера
+                Canvas.SetLeft(_worldContainer, -_camera.X);
+                Canvas.SetTop(_worldContainer, -_camera.Y);
+                
+                // Обновляем активные чанки вокруг игрока
+                _chunkManager.UpdateActiveChunks(player.X, player.Y);
+                
+                Console.WriteLine($"Игрок добавлен в мировой контейнер на позиции ({player.X}, {player.Y})");
+            }
+        }
+
+        /// <summary>
+        /// Возвращает ширину игрового мира
+        /// </summary>
+        public double GetWorldWidth()
+        {
+            return _worldWidth;
+        }
+        
+        /// <summary>
+        /// Возвращает высоту игрового мира
+        /// </summary>
+        public double GetWorldHeight()
+        {
+            return _worldHeight;
         }
 
         public string GetAmmoInfo()

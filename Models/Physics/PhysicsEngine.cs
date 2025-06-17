@@ -96,8 +96,6 @@ namespace GunVault.Models.Physics
                             score += enemy.ScoreValue;
                         }
                         
-                        bullet.RemainingRange = 0;
-                        
                         break;
                     }
                 }

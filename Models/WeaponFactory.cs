@@ -18,6 +18,17 @@ namespace GunVault.Models
             WeaponType.Laser
         };
         
+        private static readonly Dictionary<WeaponType, string> BulletSpriteNames = new Dictionary<WeaponType, string>
+        {
+            { WeaponType.Pistol, "bullet_pistol" },
+            { WeaponType.Shotgun, "bullet_shotgun" },
+            { WeaponType.AssaultRifle, "bullet_rifle" },
+            { WeaponType.MachineGun, "bullet_rifle" },
+            { WeaponType.Sniper, "bullet_sniper" },
+            { WeaponType.RocketLauncher, "bullet_rocket" },
+            { WeaponType.Laser, "" } // Lasers don't have bullet sprites
+        };
+
         public static WeaponType GetWeaponTypeForScore(int score)
         {
             int weaponIndex = Math.Min(score / SCORE_PER_WEAPON_UPGRADE, WeaponProgression.Count - 1);
@@ -39,7 +50,8 @@ namespace GunVault.Models
                         maxAmmo: 12,
                         reloadTime: 1.5,
                         spread: 0.05,
-                        bulletsPerShot: 1
+                        bulletsPerShot: 1,
+                        bulletSpriteName: BulletSpriteNames[type]
                     );
                     
                 case WeaponType.Shotgun:
@@ -53,7 +65,8 @@ namespace GunVault.Models
                         maxAmmo: 6,
                         reloadTime: 2.0,
                         spread: 0.2,
-                        bulletsPerShot: 5
+                        bulletsPerShot: 5,
+                        bulletSpriteName: BulletSpriteNames[type]
                     );
                     
                 case WeaponType.AssaultRifle:
@@ -67,7 +80,8 @@ namespace GunVault.Models
                         maxAmmo: 30,
                         reloadTime: 2.0,
                         spread: 0.1,
-                        bulletsPerShot: 1
+                        bulletsPerShot: 1,
+                        bulletSpriteName: BulletSpriteNames[type]
                     );
                     
                 case WeaponType.MachineGun:
@@ -81,7 +95,8 @@ namespace GunVault.Models
                         maxAmmo: 50,
                         reloadTime: 3.0,
                         spread: 0.15,
-                        bulletsPerShot: 1
+                        bulletsPerShot: 1,
+                        bulletSpriteName: BulletSpriteNames[type]
                     );
                     
                 case WeaponType.Sniper:
@@ -95,7 +110,8 @@ namespace GunVault.Models
                         maxAmmo: 7,
                         reloadTime: 2.5,
                         spread: 0.01,
-                        bulletsPerShot: 1
+                        bulletsPerShot: 1,
+                        bulletSpriteName: BulletSpriteNames[type]
                     );
                     
                 case WeaponType.RocketLauncher:
@@ -110,6 +126,7 @@ namespace GunVault.Models
                         reloadTime: 3.5,
                         spread: 0.05,
                         bulletsPerShot: 1,
+                        bulletSpriteName: BulletSpriteNames[type],
                         isExplosive: true,
                         explosionRadius: 100,
                         explosionDamageMultiplier: 0.85
@@ -126,7 +143,8 @@ namespace GunVault.Models
                         maxAmmo: 15,
                         reloadTime: 2.0,
                         spread: 0.02,
-                        bulletsPerShot: 1
+                        bulletsPerShot: 1,
+                        bulletSpriteName: BulletSpriteNames[type]
                     );
                     
                 default:

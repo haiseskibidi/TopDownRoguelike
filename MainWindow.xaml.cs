@@ -7,6 +7,7 @@ using GunVault.Models;
 using GunVault.GameEngine;
 using System.Threading.Tasks;
 using System.Threading;
+using System.Windows.Media;
 
 namespace GunVault;
 
@@ -24,6 +25,14 @@ public partial class MainWindow : Window
     
     // Таймер для автоматического скрытия уведомления
     private System.Windows.Threading.DispatcherTimer? _notificationTimer;
+    private System.Windows.Threading.DispatcherTimer? _statsNotificationTimer;
+    private System.Windows.Threading.DispatcherTimer? _deathCheckTimer; // Таймер для проверки смерти игрока
+    
+    // Опыт и уровень игрока
+    private int _playerLevel = 1;
+    private int _playerExperience = 0;
+    private int _experienceToNextLevel = 100;
+    private int _skillPoints = 0;
     
     // Флаг для отображения информации о размерах мира
     private bool _showDebugInfo = false;
@@ -36,6 +45,9 @@ public partial class MainWindow : Window
     private const int PRELOAD_RADIUS = 3; // Радиус предзагрузки чанков вокруг игрока (в чанках)
     private const int INITIAL_BUFFER_SIZE = 500; // Размер буферной зоны вокруг игрока (в пикселях)
     private System.Windows.Threading.DispatcherTimer? _loadingAnimationTimer; // Таймер для анимации текста загрузки
+    
+    // Флаг для отслеживания состояния игрока
+    private bool _playerIsDead = false;
     
     public MainWindow()
     {
@@ -81,6 +93,16 @@ public partial class MainWindow : Window
             _notificationTimer = new System.Windows.Threading.DispatcherTimer();
             _notificationTimer.Tick += NotificationTimer_Tick;
             _notificationTimer.Interval = TimeSpan.FromSeconds(4); // Уведомление исчезнет через 4 секунды
+
+            _statsNotificationTimer = new System.Windows.Threading.DispatcherTimer();
+            _statsNotificationTimer.Tick += StatsNotificationTimer_Tick;
+            _statsNotificationTimer.Interval = TimeSpan.FromSeconds(6); // Окно характеристик исчезнет через 6 секунд
+            
+            // Инициализируем таймер для проверки смерти игрока
+            _deathCheckTimer = new System.Windows.Threading.DispatcherTimer();
+            _deathCheckTimer.Tick += DeathCheckTimer_Tick;
+            _deathCheckTimer.Interval = TimeSpan.FromSeconds(0.5); // Проверяем каждые 0.5 секунд
+            _deathCheckTimer.Start();
         }
         catch (Exception ex)
         {
@@ -115,6 +137,7 @@ public partial class MainWindow : Window
             _gameManager = new GameManager(GameCanvas, _player, GameCanvas.ActualWidth, GameCanvas.ActualHeight, _spriteManager);
             _gameManager.ScoreChanged += GameManager_ScoreChanged;
             _gameManager.WeaponChanged += GameManager_WeaponChanged;
+            _gameManager.EnemyKilled += GameManager_EnemyKilled;
             
             // Инициализируем игровой цикл
             _gameLoop = new GameLoop(_gameManager, GameCanvas.ActualWidth, GameCanvas.ActualHeight);
@@ -150,6 +173,34 @@ public partial class MainWindow : Window
     {
         // Вместо MessageBox показываем внутриигровое уведомление
         ShowWeaponNotification(weaponName);
+    }
+    
+    private void GameManager_EnemyKilled(object sender, int experience)
+    {
+        AddExperience(experience);
+    }
+
+    private void AddExperience(int amount)
+    {
+        _playerExperience += amount;
+        bool leveledUp = false;
+        
+        if (_playerExperience >= _experienceToNextLevel)
+        {
+            _playerLevel++;
+            _skillPoints++;
+            _playerExperience -= _experienceToNextLevel;
+            _experienceToNextLevel = (int)(_experienceToNextLevel * 1.5); // Усложняем получение следующего уровня
+            leveledUp = true;
+        }
+        
+        UpdatePlayerInfo();
+        
+        // Если произошло повышение уровня, показываем окно характеристик
+        if (leveledUp)
+        {
+            ShowStatsNotification();
+        }
     }
     
     // Показывает уведомление о получении нового оружия
@@ -249,6 +300,12 @@ public partial class MainWindow : Window
         // Обновляем счет
         ScoreText.Text = $"Счёт: {_score}";
         
+        // Обновляем уровень и опыт
+        LevelText.Text = $"Уровень: {_playerLevel}";
+        ExperienceBar.Value = _playerExperience;
+        ExperienceBar.Maximum = _experienceToNextLevel;
+        SkillPointsText.Text = $"Очки навыков: {_skillPoints}";
+        
         // Отображаем отладочную информацию, если включено
         if (_showDebugInfo)
         {
@@ -258,6 +315,12 @@ public partial class MainWindow : Window
         else
         {
             DebugInfoText.Visibility = Visibility.Collapsed;
+        }
+        
+        // Проверяем здоровье игрока
+        if (_player != null && _player.Health <= 0 && !_playerIsDead)
+        {
+            ShowDeathNotification();
         }
     }
     
@@ -317,69 +380,74 @@ public partial class MainWindow : Window
     // Обработка нажатия клавиш
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
-        if (_inputHandler != null)
+        _inputHandler?.HandleKeyDown(e);
+        
+        if (e.Key == Key.L)
         {
-            _inputHandler.HandleKeyDown(e);
+            AddExperience(50);
         }
         
-        // Передаем событие нажатия клавиш менеджеру игры
-        if (_gameManager != null)
-        {
-            _gameManager.HandleKeyPress(e);
-        }
-        
-        // Отображение/скрытие отладочной информации
         if (e.Key == Key.F3)
         {
             _showDebugInfo = !_showDebugInfo;
+        }
+
+        if (_skillPoints > 0 && StatsNotification.Visibility == Visibility.Visible)
+        {
+            bool usedSkillPoint = false;
+            switch (e.Key)
+            {
+                case Key.D1:
+                    _player?.UpgradeHealthRegen();
+                    _skillPoints--;
+                    usedSkillPoint = true;
+                    break;
+                case Key.D2:
+                    _player?.UpgradeMaxHealth();
+                    _skillPoints--;
+                    usedSkillPoint = true;
+                    break;
+                case Key.D3:
+                    _player?.UpgradeBulletSpeed();
+                    _skillPoints--;
+                    usedSkillPoint = true;
+                    break;
+                case Key.D4:
+                    _player?.UpgradeBulletDamage();
+                    _skillPoints--;
+                    usedSkillPoint = true;
+                    break;
+
+                case Key.D5:
+                    _player?.UpgradeReloadSpeed();
+                    _skillPoints--;
+                    usedSkillPoint = true;
+                    break;
+                case Key.D6:
+                    _player?.UpgradeMovementSpeed();
+                    _skillPoints--;
+                    usedSkillPoint = true;
+                    break;
+            }
+            
+            // Обновляем UI после любых изменений характеристик
+            UpdateStatsUI();
+            UpdatePlayerInfo();
+            
+            // Если очки навыков закончились, запускаем таймер автоматического закрытия
+            if (usedSkillPoint && _skillPoints == 0)
+            {
+                _statsNotificationTimer!.Stop();
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Start();
+            }
         }
     }
     
     // Обработка отпускания клавиш
     private void Window_KeyUp(object sender, KeyEventArgs e)
-    {
-        if (_inputHandler != null)
-        {
-            _inputHandler.HandleKeyUp(e);
-        }
-    }
-
-    private void MainWindow_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-    {
-        // Обрабатываем клавиши только если игра инициализирована
-        if (_gameManager != null && _player != null)
-        {
-            // Обработка клавиш движения
-            switch (e.Key)
             {
-                case Key.W:
-                _player.MovingUp = true;
-                break;
-                case Key.S:
-                _player.MovingDown = true;
-                break;
-                case Key.A:
-                _player.MovingLeft = true;
-                break;
-                case Key.D:
-                _player.MovingRight = true;
-                break;
-            }
-            
-            // Обработка специальных клавиш
-            if (e.Key == Key.R)
-            {
-                _player.StartReload();
-            }
-            // Переключаем отображение границ чанков
-            else if (e.Key == Key.F3)
-            {
-                _gameManager.ToggleChunkBoundaries();
-            }
-            
-            // Передаем событие нажатия клавиши в GameManager
-            _gameManager.HandleKeyPress(e);
-        }
+        _inputHandler?.HandleKeyUp(e);
     }
 
     private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -475,6 +543,7 @@ public partial class MainWindow : Window
                 _gameManager = new GameManager(GameCanvas, _player, GameCanvas.ActualWidth, GameCanvas.ActualHeight, _spriteManager);
                 _gameManager.ScoreChanged += GameManager_ScoreChanged;
                 _gameManager.WeaponChanged += GameManager_WeaponChanged;
+                _gameManager.EnemyKilled += GameManager_EnemyKilled;
             });
             
             if (cancellationToken.IsCancellationRequested) return;
@@ -612,17 +681,344 @@ public partial class MainWindow : Window
     private int _animationDotCount = 0;
     private void LoadingAnimation_Tick(object sender, EventArgs e)
     {
-        if (LoadingStatusText.Text.EndsWith("..."))
+        _animationDotCount = (_animationDotCount + 1) % 4;
+        LoadingStatusText.Text = "ЗАГРУЗКА МИРА" + new string('.', _animationDotCount);
+    }
+
+    private void ShowStatsNotification()
+    {
+        if (_statsNotificationTimer!.IsEnabled)
         {
-            // Обрезаем многоточие
-            string baseText = LoadingStatusText.Text.Substring(0, LoadingStatusText.Text.Length - 3);
-            LoadingStatusText.Text = baseText;
-            _animationDotCount = 0;
+            _statsNotificationTimer.Stop();
         }
-        else
+
+        // Обновляем UI характеристик
+        UpdateStatsUI();
+
+        // Показываем окно с анимацией
+        StatsNotification.Opacity = 0;
+        StatsNotification.Visibility = Visibility.Visible;
+
+        DoubleAnimation fadeInAnimation = new DoubleAnimation
         {
-            _animationDotCount++;
-            LoadingStatusText.Text += ".";
+            From = 0,
+            To = 1,
+            Duration = TimeSpan.FromSeconds(0.5)
+        };
+        
+        StatsNotification.BeginAnimation(UIElement.OpacityProperty, fadeInAnimation);
+        
+        // Запускаем таймер автоматического скрытия только если нет доступных очков навыков
+        if (_skillPoints == 0)
+        {
+            _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5); // Окно исчезнет через 3.5 секунды
+            _statsNotificationTimer.Start();
         }
+    }
+    
+    private void StatsNotificationTimer_Tick(object? sender, EventArgs e)
+    {
+        _statsNotificationTimer!.Stop();
+        HideStatsNotification();
+    }
+
+    private void HideStatsNotification()
+    {
+        DoubleAnimation fadeOutAnimation = new DoubleAnimation
+        {
+            From = 1,
+            To = 0,
+            Duration = TimeSpan.FromSeconds(0.5)
+        };
+
+        fadeOutAnimation.Completed += (s, e) => StatsNotification.Visibility = Visibility.Collapsed;
+        
+        StatsNotification.BeginAnimation(UIElement.OpacityProperty, fadeOutAnimation);
+    }
+
+    // Метод для обновления UI характеристик
+    private void UpdateStatsUI()
+    {
+        if (_player == null) return;
+        
+        SkillPointsText.Text = _skillPoints.ToString();
+
+        // Health Regen
+        double healthRegenProgress = (double)_player.HealthRegenUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
+        HealthRegenFill.Width = healthRegenProgress * ((Border)HealthRegenFill.Parent).ActualWidth;
+        
+        // Max Health
+        double maxHealthProgress = (double)_player.MaxHealthUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
+        MaxHealthFill.Width = maxHealthProgress * ((Border)MaxHealthFill.Parent).ActualWidth;
+
+        // Bullet Speed
+        double bulletSpeedProgress = (double)_player.BulletSpeedUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
+        BulletSpeedFill.Width = bulletSpeedProgress * ((Border)BulletSpeedFill.Parent).ActualWidth;
+        
+        // Bullet Damage
+        double bulletDamageProgress = (double)_player.BulletDamageUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
+        BulletDamageFill.Width = bulletDamageProgress * ((Border)BulletDamageFill.Parent).ActualWidth;
+        
+        // Reload
+        double reloadProgress = (double)_player.ReloadSpeedUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
+        ReloadFill.Width = reloadProgress * ((Border)ReloadFill.Parent).ActualWidth;
+
+        // Movement Speed
+        double movementSpeedProgress = (double)_player.MovementSpeedUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
+        MovementSpeedFill.Width = movementSpeedProgress * ((Border)MovementSpeedFill.Parent).ActualWidth;
+    }
+    
+    // Обработчики кнопок улучшения характеристик
+    private void HealthRegenUpgrade_Click(object sender, RoutedEventArgs e)
+    {
+        if (_player != null && _skillPoints > 0 && _player.HealthRegenUpgradeLevel < Player.MAX_UPGRADE_LEVEL)
+        {
+            _player.UpgradeHealthRegen();
+            _skillPoints--;
+            UpdateStatsUI();
+            UpdatePlayerInfo();
+            
+            // Если очки навыков закончились, запускаем таймер автоматического закрытия
+            if (_skillPoints == 0)
+            {
+                _statsNotificationTimer!.Stop();
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Start();
+            }
+        }
+    }
+    
+    private void MaxHealthUpgrade_Click(object sender, RoutedEventArgs e)
+    {
+        if (_skillPoints > 0 && _player != null)
+        {
+            _player.UpgradeMaxHealth();
+            _skillPoints--;
+            UpdateStatsUI();
+            UpdatePlayerInfo();
+            
+            // Если очки навыков закончились, запускаем таймер автоматического закрытия
+            if (_skillPoints == 0)
+            {
+                _statsNotificationTimer!.Stop();
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Start();
+            }
+        }
+    }
+    
+    private void BulletSpeedUpgrade_Click(object sender, RoutedEventArgs e)
+    {
+        if (_player != null && _skillPoints > 0 && _player.BulletSpeedUpgradeLevel < Player.MAX_UPGRADE_LEVEL)
+        {
+            _player.UpgradeBulletSpeed();
+            _skillPoints--;
+            UpdateStatsUI();
+            UpdatePlayerInfo();
+            if (_player.MaxHealthUpgradeLevel >= Player.MAX_UPGRADE_LEVEL)
+            {
+                (sender as Button)!.IsEnabled = false;
+                (sender as Button)!.Content = "✓";
+            }
+            
+            // Если очки навыков закончились, запускаем таймер автоматического закрытия
+            if (_skillPoints == 0)
+            {
+                _statsNotificationTimer!.Stop();
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Start();
+            }
+        }
+    }
+    
+    private void BulletDamageUpgrade_Click(object sender, RoutedEventArgs e)
+    {
+        if (_skillPoints > 0 && _player != null)
+        {
+            _player.UpgradeBulletDamage();
+            _skillPoints--;
+            UpdateStatsUI();
+            UpdatePlayerInfo();
+            
+            // Если очки навыков закончились, запускаем таймер автоматического закрытия
+            if (_skillPoints == 0)
+            {
+                _statsNotificationTimer!.Stop();
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Start();
+            }
+        }
+    }
+    
+    private void ReloadUpgrade_Click(object sender, RoutedEventArgs e)
+    {
+        if (_skillPoints > 0 && _player != null)
+        {
+            _player.UpgradeReloadSpeed();
+            _skillPoints--;
+            UpdateStatsUI();
+            UpdatePlayerInfo();
+            
+            // Если очки навыков закончились, запускаем таймер автоматического закрытия
+            if (_skillPoints == 0)
+            {
+                _statsNotificationTimer!.Stop();
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Start();
+            }
+        }
+    }
+    
+    private void MovementSpeedUpgrade_Click(object sender, RoutedEventArgs e)
+    {
+        if (_player != null && _skillPoints > 0 && _player.MovementSpeedUpgradeLevel < Player.MAX_UPGRADE_LEVEL)
+        {
+            _player.UpgradeMovementSpeed();
+            _skillPoints--;
+            UpdateStatsUI();
+            UpdatePlayerInfo();
+            if (_player.MaxHealthUpgradeLevel >= Player.MAX_UPGRADE_LEVEL)
+            {
+                (sender as Button)!.IsEnabled = false;
+                (sender as Button)!.Content = "✓";
+            }
+            
+            // Если очки навыков закончились, запускаем таймер автоматического закрытия
+            if (_skillPoints == 0)
+            {
+                _statsNotificationTimer!.Stop();
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Start();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Проверяет состояние игрока и показывает окно смерти, если игрок мертв
+    /// </summary>
+    private void DeathCheckTimer_Tick(object sender, EventArgs e)
+    {
+        if (_player != null && _player.Health <= 0 && !_playerIsDead)
+        {
+            ShowDeathNotification();
+        }
+    }
+    
+    /// <summary>
+    /// Показывает окно смерти игрока
+    /// </summary>
+    private void ShowDeathNotification()
+    {
+        // Устанавливаем флаг смерти игрока
+        _playerIsDead = true;
+        
+        // Останавливаем игровой цикл
+        _gameLoop?.Stop();
+        
+        // Обновляем статистику в окне смерти
+        DeathScoreText.Text = _score.ToString();
+        DeathLevelText.Text = _playerLevel.ToString();
+        DeathWeaponText.Text = _player?.GetWeaponName() ?? "Пистолет";
+        
+        // Показываем окно с анимацией
+        DeathNotification.Opacity = 0;
+        DeathNotification.Visibility = Visibility.Visible;
+        
+        DoubleAnimation fadeInAnimation = new DoubleAnimation
+        {
+            From = 0,
+            To = 1,
+            Duration = TimeSpan.FromSeconds(0.5)
+        };
+        
+        DeathNotification.BeginAnimation(UIElement.OpacityProperty, fadeInAnimation);
+    }
+    
+    /// <summary>
+    /// Скрывает окно смерти игрока
+    /// </summary>
+    private void HideDeathNotification()
+    {
+        DoubleAnimation fadeOutAnimation = new DoubleAnimation
+        {
+            From = 1,
+            To = 0,
+            Duration = TimeSpan.FromSeconds(0.5)
+        };
+        
+        fadeOutAnimation.Completed += (s, e) => DeathNotification.Visibility = Visibility.Collapsed;
+        
+        DeathNotification.BeginAnimation(UIElement.OpacityProperty, fadeOutAnimation);
+    }
+    
+    /// <summary>
+    /// Возрождает игрока с начальными характеристиками
+    /// </summary>
+    private void RespawnPlayer()
+    {
+        if (_player != null && _gameManager != null)
+        {
+            // Сбрасываем флаг смерти игрока
+            _playerIsDead = false;
+            
+            // Удаляем старого игрока с канваса
+            try
+            {
+                // Пытаемся удалить игрока из любого родительского контейнера
+                if (_player.PlayerShape != null)
+                {
+                    var parent = VisualTreeHelper.GetParent(_player.PlayerShape) as Panel;
+                    if (parent != null)
+                    {
+                        parent.Children.Remove(_player.PlayerShape);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка при удалении игрока: {ex.Message}");
+            }
+            
+            // Создаем нового игрока в центре мира
+            double centerX = _gameManager.GetWorldWidth() / 2;
+            double centerY = _gameManager.GetWorldHeight() / 2;
+            
+            // Создаем нового игрока
+            _player = new Player(centerX, centerY, _spriteManager);
+            
+            // Обновляем обработчик ввода
+            _inputHandler = new InputHandler(_player);
+            
+            // Обновляем менеджер игры
+            _gameManager.UpdatePlayer(_player);
+            
+            // Добавляем игрока на мировой контейнер через GameManager
+            _gameManager.AddPlayerToWorld(_player);
+            
+            // Сбрасываем уровень и очки
+            _playerLevel = 1;
+            _playerExperience = 0;
+            _experienceToNextLevel = 100;
+            _skillPoints = 0;
+            _score = 0;
+            
+            // Обновляем информацию об игроке
+            UpdatePlayerInfo();
+            
+            // Запускаем игровой цикл
+            _gameLoop?.Start();
+            
+            // Фокус на канвас для обработки ввода
+            GameCanvas.Focus();
+        }
+    }
+    
+    /// <summary>
+    /// Обработчик нажатия кнопки возрождения
+    /// </summary>
+    private void RespawnButton_Click(object sender, RoutedEventArgs e)
+    {
+        HideDeathNotification();
+        RespawnPlayer();
     }
 }

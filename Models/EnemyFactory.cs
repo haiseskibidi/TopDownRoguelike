@@ -53,13 +53,15 @@ namespace GunVault.Models
             
             EnemyConfig config = EnemyConfigs[type];
             
-            double healthMultiplier = 1.0 + (scoreLevel / 500.0);
+            double healthMultiplier = 1.0 + (scoreLevel / 2000.0);
             double health = config.BaseHealth * healthMultiplier + scoreLevel / 100;
             
-            double speedMultiplier = 1.0 + (scoreLevel / 1000.0);
+            double speedMultiplier = 1.0 + (scoreLevel / 10000.0);
             double speed = config.BaseSpeed * speedMultiplier;
             
-            return new Enemy(
+            int score = 5 + (int)(scoreLevel * 0.1);
+            
+            Enemy enemy = new Enemy(
                 startX: x,
                 startY: y,
                 health: health,
@@ -71,6 +73,31 @@ namespace GunVault.Models
                 spriteName: config.SpriteName,
                 spriteManager: spriteManager
             );
+            
+            // Устанавливаем опыт в зависимости от типа врага
+            int experience = GetExperienceForEnemyType(type, scoreLevel);
+            enemy.SetExperienceValue(experience);
+            
+            return enemy;
+        }
+        
+        private static int GetExperienceForEnemyType(EnemyType type, int scoreLevel)
+        {
+            switch (type)
+            {
+                case EnemyType.Basic:
+                    return 60 + (int)(scoreLevel * 0.6);
+                case EnemyType.Runner:
+                    return 65 + (int)(scoreLevel * 0.5);
+                case EnemyType.Tank:
+                    return 75 + (int)(scoreLevel * 0.7);
+                case EnemyType.Bomber:
+                    return 85; // Фиксированный опыт, так как он взрывается
+                case EnemyType.Boss:
+                    return 200 + (int)(scoreLevel * 0.5);
+                default:
+                    return 10;
+            }
         }
         
         public static EnemyType GetRandomEnemyTypeForScore(int score, Random random)

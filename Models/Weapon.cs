@@ -23,6 +23,7 @@ namespace GunVault.Models
         public double Range { get; private set; }
         public double BulletSpeed { get; private set; }
         public WeaponType Type { get; private set; }
+        public string BulletSpriteName { get; set; }
         
         public int MaxAmmo { get; private set; }
         public int CurrentAmmo { get; private set; }
@@ -46,7 +47,7 @@ namespace GunVault.Models
         
         public Weapon(string name, WeaponType type, double damage, double fireRate, double range, 
                       double bulletSpeed, int maxAmmo, double reloadTime, double spread, int bulletsPerShot,
-                      bool isExplosive = false, double explosionRadius = 0, double explosionDamageMultiplier = 1.0)
+                      string bulletSpriteName, bool isExplosive = false, double explosionRadius = 0, double explosionDamageMultiplier = 1.0)
         {
             Name = name;
             Type = type;
@@ -59,6 +60,7 @@ namespace GunVault.Models
             ReloadTime = reloadTime;
             Spread = spread;
             BulletsPerShot = bulletsPerShot;
+            BulletSpriteName = bulletSpriteName;
             
             IsExplosive = isExplosive;
             ExplosionRadius = explosionRadius;
@@ -89,77 +91,45 @@ namespace GunVault.Models
             }
         }
         
-        public void StartReload()
+        public void StartReload(double reloadSpeedModifier = 1.0)
         {
             if (!IsReloading && CurrentAmmo < MaxAmmo)
             {
                 IsReloading = true;
-                _reloadTimer = ReloadTime;
+                _reloadTimer = ReloadTime / reloadSpeedModifier;
             }
         }
         
-        public bool CanFire()
+        public bool CanShoot()
         {
             return _currentCooldown <= 0 && CurrentAmmo > 0 && !IsReloading;
         }
-        
-        public List<Bullet> Fire(double startX, double startY, double targetX, double targetY)
+
+        public void Shoot()
         {
-            if (!CanFire())
-                return null;
+            if (!CanShoot())
+                return;
 
             _currentCooldown = _cooldownTime;
-            
             CurrentAmmo--;
-            
-            List<Bullet> bullets = new List<Bullet>();
-            
-            for (int i = 0; i < BulletsPerShot; i++)
-            {
-                double angle = Math.Atan2(targetY - startY, targetX - startX);
-                
-                if (Spread > 0)
-                {
-                    double randomSpread = (new Random().NextDouble() * 2 - 1) * Spread;
-                    angle += randomSpread;
-                }
-                
-                bullets.Add(new Bullet(startX, startY, angle, BulletSpeed, Damage, Range, Type));
-            }
-            
+
             if (CurrentAmmo <= 0)
             {
-                StartReload();
+                StartReload(); // Note: This will use the default modifier of 1.0
             }
-            
-            return bullets;
         }
         
-        public LaserBeam FireLaser(double startX, double startY, double targetX, double targetY)
+        public List<Point> GetMuzzlePositions(double playerAngle)
         {
-            if (!CanFire())
-                return null;
-            
-            _currentCooldown = _cooldownTime;
-            
-            CurrentAmmo--;
-            
-            double angle = Math.Atan2(targetY - startY, targetX - startX);
-            
-            if (Spread > 0)
-            {
-                double randomSpread = (new Random().NextDouble() * 2 - 1) * Spread;
-                angle += randomSpread;
-            }
-            
-            LaserBeam laser = new LaserBeam(startX, startY, angle, Damage, Range);
-            
-            if (CurrentAmmo <= 0)
-            {
-                StartReload();
-            }
-            
-            return laser;
+            // This is a placeholder. The actual implementation would be more complex,
+            // likely involving data from a configuration file.
+            // For now, let's just return a single point in front of the player.
+            var list = new List<Point>();
+            double muzzleOffsetX = 30; // distance from player center
+            double muzzleX = Math.Cos(playerAngle) * muzzleOffsetX;
+            double muzzleY = Math.Sin(playerAngle) * muzzleOffsetX;
+            list.Add(new Point(muzzleX, muzzleY));
+            return list;
         }
         
         public string GetAmmoInfo()

@@ -25,6 +25,11 @@ namespace GunVault.Models
         public double Y { get; private set; }
         public double Health { get; private set; }
         public double MaxHealth { get; private set; }
+        public double HealthRegen { get; private set; }
+        public double BulletSpeedModifier { get; private set; }
+        public double BulletDamageModifier { get; private set; }
+        public double ReloadSpeedModifier { get; private set; }
+        public double MovementSpeed { get; private set; }
         public UIElement PlayerShape { get; private set; }
         public Weapon CurrentWeapon { get; private set; }
         public RectCollider Collider { get; private set; }
@@ -40,6 +45,15 @@ namespace GunVault.Models
         private double _currentAngle = 0;
         private double _targetAngle = 0;
         
+        // Уровни характеристик игрока
+        public int HealthRegenUpgradeLevel { get; private set; } = 0;
+        public int MaxHealthUpgradeLevel { get; private set; } = 0;
+        public int BulletSpeedUpgradeLevel { get; private set; } = 0;
+        public int BulletDamageUpgradeLevel { get; private set; } = 0;
+        public int ReloadSpeedUpgradeLevel { get; private set; } = 0;
+        public int MovementSpeedUpgradeLevel { get; private set; } = 0;
+        public const int MAX_UPGRADE_LEVEL = 10;
+        
         private static readonly Dictionary<string, Tuple<double, double>> SpriteProportions = new Dictionary<string, Tuple<double, double>>
         {
             { "player_pistol", new Tuple<double, double>(46.0, 32.0) },
@@ -53,6 +67,11 @@ namespace GunVault.Models
             Y = startY;
             MaxHealth = 100;
             Health = MaxHealth;
+            HealthRegen = 0;
+            BulletSpeedModifier = 1.0;
+            BulletDamageModifier = 1.0;
+            ReloadSpeedModifier = 1.0;
+            MovementSpeed = 5.0;
             
             InitializeCollider();
             
@@ -250,37 +269,28 @@ namespace GunVault.Models
             double dx = 0;
             double dy = 0;
             
-            if (MovingUp)
-                dy -= PLAYER_SPEED;
-            if (MovingDown)
-                dy += PLAYER_SPEED;
-            if (MovingLeft)
-                dx -= PLAYER_SPEED;
-            if (MovingRight)
-                dx += PLAYER_SPEED;
+            if (MovingUp) dy -= MovementSpeed;
+            if (MovingDown) dy += MovementSpeed;
+            if (MovingLeft) dx -= MovementSpeed;
+            if (MovingRight) dx += MovementSpeed;
             
-            // Сохраняем текущую скорость для использования в предварительной загрузке чанков
             VelocityX = dx;
             VelocityY = dy;
             
             if (dx != 0 || dy != 0)
             {
-                // Нормализуем движение по диагонали
                 if (dx != 0 && dy != 0)
                 {
                     double length = Math.Sqrt(dx * dx + dy * dy);
-                    dx = dx / length * PLAYER_SPEED;
-                    dy = dy / length * PLAYER_SPEED;
+                    dx = dx / length * MovementSpeed;
+                    dy = dy / length * MovementSpeed;
                     
-                    // Обновляем нормализованную скорость
                     VelocityX = dx;
                     VelocityY = dy;
                 }
                 
-                // Реализуем продвинутую проверку с коллизиями и скользящими столкновениями
                 MoveWithSlidingCollisions(dx, dy);
                 
-                // Обновляем визуальную позицию
                 UpdatePosition();
             }
         }
@@ -420,129 +430,98 @@ namespace GunVault.Models
         
         public void TakeDamage(double damage)
         {
-            Health = Math.Max(0, Health - damage);
+            Health -= damage;
         }
         
         public void Heal(double amount)
         {
-            Health = Math.Min(MaxHealth, Health + amount);
+            Health += amount;
+            if (Health > MaxHealth)
+            {
+                Health = MaxHealth;
+            }
         }
         
         public List<Bullet> Shoot(Point targetPoint)
         {
-            if (CurrentWeapon.IsLaser)
+            if (CurrentWeapon.CanShoot())
             {
-                return null;
-            }
-            
-            if (CurrentWeapon.CanFire())
-            {
-                var muzzleParams = WeaponMuzzleConfig.GetMuzzleParams(CurrentWeapon.Type);
-                
-                double spriteWidth = PLAYER_RADIUS * 2;
-                double spriteHeight = PLAYER_RADIUS * 2;
-                
-                if (PlayerShape is Image image)
+                CurrentWeapon.Shoot();
+                var bullets = new List<Bullet>();
+
+                double angle = Math.Atan2(targetPoint.Y - Y, targetPoint.X - X);
+
+                // This is a simplified muzzle position calculation.
+                // A more robust solution would be needed for complex sprites.
+                double muzzleOffsetX = 30; 
+                double muzzleX = X + Math.Cos(angle) * muzzleOffsetX;
+                double muzzleY = Y + Math.Sin(angle) * muzzleOffsetX;
+
+                var spriteManager = GetSpriteManager();
+
+                for (int i = 0; i < CurrentWeapon.BulletsPerShot; i++)
                 {
-                    spriteWidth = image.Width;
-                    spriteHeight = image.Height;
+                    double spreadAngle = angle + (new Random().NextDouble() - 0.5) * CurrentWeapon.Spread;
+
+                    var bullet = new Bullet(
+                        muzzleX,
+                        muzzleY,
+                        spreadAngle,
+                        CurrentWeapon.BulletSpeed * BulletSpeedModifier,
+                        CurrentWeapon.Damage * BulletDamageModifier,
+                        CurrentWeapon.BulletSpriteName,
+                        spriteManager
+                    );
+                    
+                    // Устанавливаем свойства взрывной пули для ракетницы
+                    if (CurrentWeapon.Type == WeaponType.RocketLauncher)
+                    {
+                        bullet.IsExplosive = true;
+                        bullet.ExplosionRadius = 100;
+                        bullet.ExplosionDamage = CurrentWeapon.Damage * 0.85 * BulletDamageModifier;
+                    }
+                    
+                    bullets.Add(bullet);
                 }
-                
-                // Расчет точки вылета пули относительно спрайта
-                double angle = _currentAngle;
-                bool isFlipped = Math.Abs(NormalizeAngle(angle)) > Math.PI / 2;
-                
-                // Вычисляем базовое смещение относительно центра игрока
-                double offsetX = muzzleParams.OffsetX;
-                double offsetY = muzzleParams.OffsetY;
-                
-                // Корректируем смещение по Y при отражении спрайта
-                if (isFlipped)
-                {
-                    offsetY = -offsetY;
-                }
-                
-                // Вычисляем смещение с учетом поворота
-                double rotatedOffsetX = offsetX * Math.Cos(angle) - offsetY * Math.Sin(angle);
-                double rotatedOffsetY = offsetY * Math.Cos(angle) + offsetX * Math.Sin(angle);
-                
-                // Вычисляем итоговую позицию дула
-                double muzzleX = X + rotatedOffsetX;
-                double muzzleY = Y + rotatedOffsetY;
-                
-                string flipped = isFlipped ? "да" : "нет";
-                Console.WriteLine($"Выстрел из {CurrentWeapon.Name}, угол: {angle * 180 / Math.PI:F1}°, отражение: {flipped}");
-                Console.WriteLine($"Смещения: X={offsetX:F1}, Y={offsetY:F1}, X_повернутый={rotatedOffsetX:F1}, Y_повернутый={rotatedOffsetY:F1}");
-                Console.WriteLine($"Позиция игрока: ({X:F1}, {Y:F1}), позиция дула: ({muzzleX:F1}, {muzzleY:F1})");
-                
-                return CurrentWeapon.Fire(muzzleX, muzzleY, targetPoint.X, targetPoint.Y);
+                return bullets;
             }
-            
             return null;
         }
         
         public LaserBeam ShootLaser(Point targetPoint)
         {
-            if (!CurrentWeapon.IsLaser || !CurrentWeapon.CanFire())
+            if (CurrentWeapon.CanShoot())
             {
-                return null;
+                CurrentWeapon.Shoot();
+
+                double angle = Math.Atan2(targetPoint.Y - Y, targetPoint.X - X);
+                
+                double muzzleOffsetX = 30;
+                double muzzleX = X + Math.Cos(angle) * muzzleOffsetX;
+                double muzzleY = Y + Math.Sin(angle) * muzzleOffsetX;
+
+                var laser = new LaserBeam(
+                    muzzleX,
+                    muzzleY,
+                    angle,
+                    CurrentWeapon.Damage * BulletDamageModifier,
+                    CurrentWeapon.Range
+                );
+                return laser;
             }
-            
-            var muzzleParams = WeaponMuzzleConfig.GetMuzzleParams(CurrentWeapon.Type);
-            
-            double spriteWidth = PLAYER_RADIUS * 2;
-            double spriteHeight = PLAYER_RADIUS * 2;
-            
-            if (PlayerShape is Image image)
-            {
-                spriteWidth = image.Width;
-                spriteHeight = image.Height;
-            }
-            
-            // Расчет точки вылета лазера относительно спрайта
-            double angle = _currentAngle;
-            bool isFlipped = Math.Abs(NormalizeAngle(angle)) > Math.PI / 2;
-            
-            // Вычисляем базовое смещение относительно центра игрока
-            double offsetX = muzzleParams.OffsetX;
-            double offsetY = muzzleParams.OffsetY;
-            
-            // Корректируем смещение по Y при отражении спрайта
-            if (isFlipped)
-            {
-                offsetY = -offsetY;
-            }
-            
-            // Вычисляем смещение с учетом поворота
-            double rotatedOffsetX = offsetX * Math.Cos(angle) - offsetY * Math.Sin(angle);
-            double rotatedOffsetY = offsetY * Math.Cos(angle) + offsetX * Math.Sin(angle);
-            
-            // Вычисляем итоговую позицию дула
-            double muzzleX = X + rotatedOffsetX;
-            double muzzleY = Y + rotatedOffsetY;
-            
-            string flipped = isFlipped ? "да" : "нет";
-            Console.WriteLine($"Лазерный выстрел, угол: {angle * 180 / Math.PI:F1}°, отражение: {flipped}");
-            Console.WriteLine($"Смещения: X={offsetX:F1}, Y={offsetY:F1}, X_повернутый={rotatedOffsetX:F1}, Y_повернутый={rotatedOffsetY:F1}");
-            Console.WriteLine($"Позиция игрока: ({X:F1}, {Y:F1}), позиция дула: ({muzzleX:F1}, {muzzleY:F1})");
-            
-            return CurrentWeapon.FireLaser(muzzleX, muzzleY, targetPoint.X, targetPoint.Y);
+            return null;
         }
         
         public void UpdateWeapon(double deltaTime, Point targetPoint)
         {
-            if (PlayerShape is Image)
-            {
-                _targetAngle = Math.Atan2(targetPoint.Y - Y, targetPoint.X - X);
-                UpdateRotation(deltaTime);
-            }
-            
             CurrentWeapon.Update(deltaTime);
+            _targetAngle = Math.Atan2(targetPoint.Y - Y, targetPoint.X - X);
+            UpdateRotation(deltaTime);
         }
         
         public void StartReload()
         {
-            CurrentWeapon.StartReload();
+            CurrentWeapon.StartReload(ReloadSpeedModifier);
         }
         
         public WeaponType GetWeaponType()
@@ -651,6 +630,26 @@ namespace GunVault.Models
                 Stroke = Brushes.Black,
                 StrokeThickness = 2
             };
+        }
+
+        public void UpgradeHealthRegen() { HealthRegen += 0.5; HealthRegenUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, HealthRegenUpgradeLevel + 1); }
+        public void UpgradeMaxHealth() { MaxHealth += 20; Health += 20; MaxHealthUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, MaxHealthUpgradeLevel + 1); }
+        public void UpgradeBulletSpeed() { BulletSpeedModifier += 0.1; BulletSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, BulletSpeedUpgradeLevel + 1); }
+        public void UpgradeBulletDamage() { BulletDamageModifier += 0.1; BulletDamageUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, BulletDamageUpgradeLevel + 1); }
+        public void UpgradeReloadSpeed() { ReloadSpeedModifier += 0.1; ReloadSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, ReloadSpeedUpgradeLevel + 1); }
+        public void UpgradeMovementSpeed() { MovementSpeed += 0.5; MovementSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, MovementSpeedUpgradeLevel + 1); }
+
+        private SpriteManager GetSpriteManager()
+        {
+            var mainWindow = Application.Current.MainWindow as GunVault.MainWindow;
+            if (mainWindow == null) return null;
+            
+            var spriteManagerField = mainWindow.GetType().GetField("_spriteManager", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            
+            if (spriteManagerField == null) return null;
+            
+            return spriteManagerField.GetValue(mainWindow) as SpriteManager;
         }
     }
 } 

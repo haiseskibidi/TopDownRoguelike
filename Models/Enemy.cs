@@ -20,6 +20,7 @@ namespace GunVault.Models
         public double Speed { get; private set; }
         public double Radius { get; private set; }
         public int ScoreValue { get; private set; }
+        public int ExperienceValue { get; private set; }
         public double DamageOnCollision { get; private set; }
         public EnemyType Type { get; private set; }
         public CircleCollider Collider { get; private set; }
@@ -58,7 +59,7 @@ namespace GunVault.Models
 
             Collider = new CircleCollider(X + offsetX, Y + offsetY, Radius * 0.8);
             
-            if (spriteManager != null)
+            if (spriteManager != null && !string.IsNullOrEmpty(spriteName))
             {
                 EnemyShape = spriteManager.CreateSpriteImage(spriteName, Radius * 2, Radius * 2);
             }
@@ -373,6 +374,25 @@ namespace GunVault.Models
             double distance = Math.Sqrt(dx * dx + dy * dy);
             
             return distance < Radius + 20;
+        }
+
+        public void SetExperienceValue(int value)
+        {
+            ExperienceValue = value;
+        }
+
+        public void SetInitialBrush(Brush brush)
+        {
+            _originalBrush = brush;
+            if (EnemyShape is Ellipse ellipse)
+            {
+                ellipse.Fill = _originalBrush;
+            }
+            else if (EnemyShape is Image image)
+            {
+                image.Effect = null;
+                image.OpacityMask = null;
+            }
         }
     }
 } 

@@ -11,7 +11,71 @@
         ResizeMode="CanResize"
         KeyDown="Window_KeyDown" 
         KeyUp="Window_KeyUp"
-        SizeChanged="Window_SizeChanged">
+        SizeChanged="Window_SizeChanged"
+        Loaded="MainWindow_Loaded"
+        Closing="MainWindow_Closing">
+    <Window.Resources>
+        <!-- Эффект свечения для UI -->
+        <DropShadowEffect x:Key="GlowEffect" ShadowDepth="0" BlurRadius="15" Color="#5555AA" Opacity="0.8" />
+        
+        <!-- Стиль для круглой иконки характеристики -->
+        <Style x:Key="StatIconStyle" TargetType="{x:Type Border}">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        
+        <!-- Стиль для скругленного ProgressBar -->
+        <Style x:Key="RoundedProgressBar" TargetType="{x:Type ProgressBar}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ProgressBar}">
+                        <Grid>
+                            <Border x:Name="PART_Track" CornerRadius="6" Background="{TemplateBinding Background}" />
+                            <Border x:Name="PART_Indicator" CornerRadius="6" Background="{TemplateBinding Foreground}" 
+                                    HorizontalAlignment="Left" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Стиль для круглой кнопки -->
+        <Style x:Key="RoundButton" TargetType="{x:Type Button}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Grid>
+                            <Ellipse x:Name="ButtonEllipse"
+                                     Fill="{TemplateBinding Background}"
+                                     Stroke="{TemplateBinding BorderBrush}"
+                                     StrokeThickness="{TemplateBinding BorderThickness}"
+                                     Width="{TemplateBinding Width}"
+                                     Height="{TemplateBinding Height}"/>
+                            <TextBlock Text="{TemplateBinding Content}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontSize="{TemplateBinding FontSize}"
+                                       FontWeight="{TemplateBinding FontWeight}"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       Padding="0,-7,0,0" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Fill" TargetName="ButtonEllipse" Value="#555555"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Fill" TargetName="ButtonEllipse" Value="#666666"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -24,6 +88,10 @@
             <TextBlock x:Name="WeaponText" Text="Оружие: Пистолет" Foreground="White" FontSize="18" Margin="40,0,0,0" VerticalAlignment="Center"/>
             <TextBlock x:Name="AmmoText" Text="Патроны: 12/12" Foreground="White" FontSize="18" Margin="40,0,0,0" VerticalAlignment="Center"/>
             <TextBlock x:Name="ScoreText" Text="Счёт: 0" Foreground="White" FontSize="18" Margin="40,0,0,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="LevelText" Text="Уровень: 1" Foreground="White" FontSize="18" Margin="40,0,0,0" VerticalAlignment="Center"/>
+            <ProgressBar x:Name="ExperienceBar" Width="200" Height="20" Margin="10,0,0,0" VerticalAlignment="Center"
+                         Foreground="#FFD700" Background="#555555" BorderBrush="#AAAAAA" BorderThickness="1"
+                         Value="0" Maximum="100"/>
             <TextBlock x:Name="DebugInfoText" Text="Отладка" Foreground="#AAFFAA" FontSize="16" Margin="40,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
         </StackPanel>
         
@@ -43,6 +111,418 @@
                            FontSize="18" HorizontalAlignment="Center" Margin="0,10,0,0"/>
             </StackPanel>
         </Grid>
+        
+        <!-- Окно прокачки характеристик -->
+        <Border x:Name="StatsNotification" Grid.Row="1" Visibility="Collapsed" 
+                HorizontalAlignment="Left" VerticalAlignment="Bottom" 
+                Margin="20,0,0,20" Panel.ZIndex="1000"
+                Background="#222233" BorderThickness="0"
+                CornerRadius="15" Effect="{StaticResource GlowEffect}">
+            <Grid Margin="15">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <!-- Заголовок и украшение -->
+                <Border Grid.Row="0" Background="#4444AA" CornerRadius="10" Margin="0,0,0,15">
+                    <Grid>
+                        <TextBlock Text="УЛУЧШЕНИЯ" Foreground="#FFFFFF" FontSize="22" FontWeight="Bold" 
+                                 HorizontalAlignment="Center" Margin="10,10,10,10">
+                            <TextBlock.Effect>
+                                <DropShadowEffect Color="#8888FF" ShadowDepth="1" BlurRadius="4" Opacity="0.8"/>
+                            </TextBlock.Effect>
+                        </TextBlock>
+                        
+                        <Border BorderBrush="#8888FF" BorderThickness="0,0,0,2" Margin="40,35,40,0" 
+                              VerticalAlignment="Bottom"/>
+                    </Grid>
+                </Border>
+                
+                <!-- Очки навыков -->
+                <Border Grid.Row="1" Background="#333355" CornerRadius="10" Margin="0,0,0,15" Padding="10">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="ОЧКИ НАВЫКОВ: " Foreground="#AAAAFF" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="SkillPointsText" Text="1" Foreground="#FFFFFF" FontSize="16" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Характеристики -->
+                <StackPanel Grid.Row="2" Width="340">
+                    <!-- Health Regen -->
+                    <Grid Margin="0,8" Height="36">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <Border Grid.Column="0" Background="#FF5555" Width="36" Height="36">
+                            <Border.CornerRadius>
+                                <CornerRadius>18</CornerRadius>
+                            </Border.CornerRadius>
+                            <TextBlock Text="1" Foreground="White" FontSize="18" FontWeight="Bold" 
+                                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Effect>
+                                    <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="2" Opacity="0.5"/>
+                                </TextBlock.Effect>
+                            </TextBlock>
+                        </Border>
+                        
+                        <Grid Grid.Column="1" Margin="8,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Text="ВОССТАНОВЛЕНИЕ" Foreground="#DDDDDD" FontSize="12" 
+                                     FontWeight="Bold" Margin="0,0,0,2"/>
+                            
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="5" Height="12">
+                                <Border x:Name="HealthRegenFill" Background="#FF5555" CornerRadius="5,0,0,5" 
+                                        Width="0" Height="12" HorizontalAlignment="Left">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#FF5555" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
+                                    </Border.Effect>
+                                </Border>
+                            </Border>
+                        </Grid>
+                        
+                        <Button Grid.Column="2" Width="36" Height="36" Style="{StaticResource RoundButton}" 
+                                Background="#FF7777" BorderThickness="0" Cursor="Hand"
+                                Content="+" FontWeight="Bold" FontSize="22" Foreground="White"
+                                Click="HealthRegenUpgrade_Click">
+                                    <Button.Effect>
+                                        <DropShadowEffect Color="#FF5555" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
+                                    </Button.Effect>
+                                </Button>
+                    </Grid>
+                    
+                    <!-- Max Health -->
+                    <Grid Margin="0,8" Height="36">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <Border Grid.Column="0" Background="#FF9955" Width="36" Height="36">
+                            <Border.CornerRadius>
+                                <CornerRadius>18</CornerRadius>
+                            </Border.CornerRadius>
+                            <TextBlock Text="2" Foreground="White" FontSize="18" FontWeight="Bold" 
+                                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Effect>
+                                    <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="2" Opacity="0.5"/>
+                                </TextBlock.Effect>
+                            </TextBlock>
+                        </Border>
+                        
+                        <Grid Grid.Column="1" Margin="8,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Text="МАКС. ЗДОРОВЬЕ" Foreground="#DDDDDD" FontSize="12" 
+                                     FontWeight="Bold" Margin="0,0,0,2"/>
+                            
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="5" Height="12">
+                                <Border x:Name="MaxHealthFill" Background="#FF9955" CornerRadius="5,0,0,5" 
+                                        Width="0" Height="12" HorizontalAlignment="Left">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#FF9955" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
+                                    </Border.Effect>
+                                </Border>
+                            </Border>
+                        </Grid>
+                        
+                        <Button Grid.Column="2" Width="36" Height="36" Style="{StaticResource RoundButton}"
+                                Background="#FFAA77" BorderThickness="0" Cursor="Hand"
+                                Content="+" FontWeight="Bold" FontSize="22" Foreground="White"
+                                Click="MaxHealthUpgrade_Click">
+                                    <Button.Effect>
+                                        <DropShadowEffect Color="#FF9955" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
+                                    </Button.Effect>
+                                </Button>
+                    </Grid>
+                    
+                    <!-- Bullet Speed -->
+                    <Grid Margin="0,8" Height="36">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <Border Grid.Column="0" Background="#55AAFF" Width="36" Height="36">
+                            <Border.CornerRadius>
+                                <CornerRadius>18</CornerRadius>
+                            </Border.CornerRadius>
+                            <TextBlock Text="3" Foreground="White" FontSize="18" FontWeight="Bold" 
+                                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Effect>
+                                    <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="2" Opacity="0.5"/>
+                                </TextBlock.Effect>
+                            </TextBlock>
+                        </Border>
+                        
+                        <Grid Grid.Column="1" Margin="8,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Text="СКОРОСТЬ ПУЛИ" Foreground="#DDDDDD" FontSize="12" 
+                                     FontWeight="Bold" Margin="0,0,0,2"/>
+                            
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="5" Height="12">
+                                <Border x:Name="BulletSpeedFill" Background="#55AAFF" CornerRadius="5,0,0,5" 
+                                        Width="0" Height="12" HorizontalAlignment="Left">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#55AAFF" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
+                                    </Border.Effect>
+                                </Border>
+                            </Border>
+                        </Grid>
+                        
+                        <Button Grid.Column="2" Width="36" Height="36" Style="{StaticResource RoundButton}"
+                                Background="#77BBFF" BorderThickness="0" Cursor="Hand"
+                                Content="+" FontWeight="Bold" FontSize="22" Foreground="White"
+                                Click="BulletSpeedUpgrade_Click">
+                                    <Button.Effect>
+                                        <DropShadowEffect Color="#55AAFF" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
+                                    </Button.Effect>
+                                </Button>
+                    </Grid>
+                    
+                    <!-- Bullet Damage -->
+                    <Grid Margin="0,8" Height="36">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <Border Grid.Column="0" Background="#FF55AA" Width="36" Height="36">
+                            <Border.CornerRadius>
+                                <CornerRadius>18</CornerRadius>
+                            </Border.CornerRadius>
+                            <TextBlock Text="4" Foreground="White" FontSize="18" FontWeight="Bold" 
+                                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Effect>
+                                    <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="2" Opacity="0.5"/>
+                                </TextBlock.Effect>
+                            </TextBlock>
+                        </Border>
+                        
+                        <Grid Grid.Column="1" Margin="8,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Text="УРОН ПУЛИ" Foreground="#DDDDDD" FontSize="12" 
+                                     FontWeight="Bold" Margin="0,0,0,2"/>
+                            
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="5" Height="12">
+                                <Border x:Name="BulletDamageFill" Background="#FF55AA" CornerRadius="5,0,0,5" 
+                                        Width="0" Height="12" HorizontalAlignment="Left">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#FF55AA" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
+                                    </Border.Effect>
+                                </Border>
+                            </Border>
+                        </Grid>
+                        
+                        <Button Grid.Column="2" Width="36" Height="36" Style="{StaticResource RoundButton}"
+                                Background="#FF77BB" BorderThickness="0" Cursor="Hand"
+                                Content="+" FontWeight="Bold" FontSize="22" Foreground="White"
+                                Click="BulletDamageUpgrade_Click">
+                                    <Button.Effect>
+                                        <DropShadowEffect Color="#FF55AA" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
+                                    </Button.Effect>
+                                </Button>
+                    </Grid>
+                    
+                    <!-- Reload -->
+                    <Grid Margin="0,8" Height="36">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <Border Grid.Column="0" Background="#55FF55" Width="36" Height="36">
+                            <Border.CornerRadius>
+                                <CornerRadius>18</CornerRadius>
+                            </Border.CornerRadius>
+                            <TextBlock Text="5" Foreground="White" FontSize="18" FontWeight="Bold" 
+                                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Effect>
+                                    <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="2" Opacity="0.5"/>
+                                </TextBlock.Effect>
+                            </TextBlock>
+                        </Border>
+                        
+                        <Grid Grid.Column="1" Margin="8,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Text="ПЕРЕЗАРЯДКА" Foreground="#DDDDDD" FontSize="12" 
+                                     FontWeight="Bold" Margin="0,0,0,2"/>
+                            
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="5" Height="12">
+                                <Border x:Name="ReloadFill" Background="#55FF55" CornerRadius="5,0,0,5" 
+                                        Width="0" Height="12" HorizontalAlignment="Left">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#55FF55" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
+                                    </Border.Effect>
+                                </Border>
+                            </Border>
+                        </Grid>
+                        
+                        <Button Grid.Column="2" Width="36" Height="36" Style="{StaticResource RoundButton}"
+                                Background="#77FF77" BorderThickness="0" Cursor="Hand"
+                                Content="+" FontWeight="Bold" FontSize="22" Foreground="White"
+                                Click="ReloadUpgrade_Click">
+                                    <Button.Effect>
+                                        <DropShadowEffect Color="#55FF55" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
+                                    </Button.Effect>
+                                </Button>
+                    </Grid>
+                    
+                    <!-- Movement Speed -->
+                    <Grid Margin="0,8" Height="36">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <Border Grid.Column="0" Background="#55FFFF" Width="36" Height="36">
+                            <Border.CornerRadius>
+                                <CornerRadius>18</CornerRadius>
+                            </Border.CornerRadius>
+                            <TextBlock Text="6" Foreground="White" FontSize="18" FontWeight="Bold" 
+                                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Effect>
+                                    <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="2" Opacity="0.5"/>
+                                </TextBlock.Effect>
+                            </TextBlock>
+                        </Border>
+                        
+                        <Grid Grid.Column="1" Margin="8,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Text="СКОРОСТЬ ДВИЖЕНИЯ" Foreground="#DDDDDD" FontSize="12" 
+                                     FontWeight="Bold" Margin="0,0,0,2"/>
+                            
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="5" Height="12">
+                                <Border x:Name="MovementSpeedFill" Background="#55FFFF" CornerRadius="5,0,0,5" 
+                                        Width="0" Height="12" HorizontalAlignment="Left">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#55FFFF" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
+                                    </Border.Effect>
+                                </Border>
+                            </Border>
+                        </Grid>
+                        
+                        <Button Grid.Column="2" Width="36" Height="36" Style="{StaticResource RoundButton}"
+                                Background="#77FFFF" BorderThickness="0" Cursor="Hand"
+                                Content="+" FontWeight="Bold" FontSize="22" Foreground="White"
+                                Click="MovementSpeedUpgrade_Click">
+                                    <Button.Effect>
+                                        <DropShadowEffect Color="#55FFFF" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
+                                    </Button.Effect>
+                                </Button>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+        
+        <!-- Окно смерти игрока -->
+        <Border x:Name="DeathNotification" Grid.Row="1" Visibility="Collapsed" 
+                HorizontalAlignment="Center" VerticalAlignment="Center" 
+                Margin="0,0,0,0" Panel.ZIndex="1000"
+                Background="#222233" BorderThickness="0"
+                CornerRadius="15" Effect="{StaticResource GlowEffect}">
+            <Grid Margin="15">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <!-- Заголовок и украшение -->
+                <Border Grid.Row="0" Background="#AA4444" CornerRadius="10" Margin="0,0,0,15">
+                    <Grid>
+                        <TextBlock Text="ПОРАЖЕНИЕ" Foreground="#FFFFFF" FontSize="22" FontWeight="Bold" 
+                                 HorizontalAlignment="Center" Margin="10,10,10,10">
+                            <TextBlock.Effect>
+                                <DropShadowEffect Color="#FF8888" ShadowDepth="1" BlurRadius="4" Opacity="0.8"/>
+                            </TextBlock.Effect>
+                        </TextBlock>
+                        
+                        <Border BorderBrush="#FF8888" BorderThickness="0,0,0,2" Margin="40,35,40,0" 
+                              VerticalAlignment="Bottom"/>
+                    </Grid>
+                </Border>
+                
+                <!-- Статистика игрока -->
+                <Border Grid.Row="1" Background="#333355" CornerRadius="10" Margin="0,0,0,15" Padding="15">
+                    <StackPanel>
+                        <TextBlock Text="СТАТИСТИКА" Foreground="#AAAAFF" FontSize="16" FontWeight="SemiBold" 
+                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
+                            <TextBlock Text="Счёт: " Foreground="#DDDDDD" FontSize="14" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="DeathScoreText" Text="0" Foreground="#FFFFFF" FontSize="14" FontWeight="Bold"/>
+                        </StackPanel>
+                        
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
+                            <TextBlock Text="Уровень: " Foreground="#DDDDDD" FontSize="14" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="DeathLevelText" Text="1" Foreground="#FFFFFF" FontSize="14" FontWeight="Bold"/>
+                        </StackPanel>
+                        
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
+                            <TextBlock Text="Оружие: " Foreground="#DDDDDD" FontSize="14" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="DeathWeaponText" Text="Пистолет" Foreground="#FFFFFF" FontSize="14" FontWeight="Bold"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Кнопка возрождения -->
+                <Button Grid.Row="2" Content="ВОЗРОДИТЬСЯ" Foreground="White" FontSize="16" FontWeight="Bold"
+                        Background="#AA4444" BorderThickness="0" Padding="15,10" Margin="0,10,0,0"
+                        Click="RespawnButton_Click" Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#CC5555"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter Property="Background" Value="#DD6666"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <Button.Effect>
+                        <DropShadowEffect Color="#FF5555" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
+                    </Button.Effect>
+                </Button>
+            </Grid>
+        </Border>
         
         <!-- Уведомление о новом оружии -->
         <Border x:Name="WeaponNotification" Grid.Row="1" Visibility="Collapsed" Background="#80000000" 

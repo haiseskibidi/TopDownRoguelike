@@ -15,19 +15,23 @@ namespace GunVault.Models
         private double _angle;
         public double Speed { get; private set; }
         public double Damage { get; private set; }
-        public double RemainingRange { get; set; }
         
         public double PrevX => _prevX;
         public double PrevY => _prevY;
         private double _prevX;
         private double _prevY;
         
-        public Ellipse BulletShape { get; private set; }
+        public UIElement BulletShape { get; private set; }
         private const double BULLET_RADIUS = 4.0; 
         
         public TileType? CollidedWithTileType { get; private set; }
         
-        public Bullet(double startX, double startY, double angle, double speed, double damage, double range, WeaponType weaponType = WeaponType.Pistol)
+        // Свойства для взрывных пуль (ракет)
+        public bool IsExplosive { get; set; }
+        public double ExplosionRadius { get; set; }
+        public double ExplosionDamage { get; set; }
+        
+        public Bullet(double startX, double startY, double angle, double speed, double damage, string spriteName, SpriteManager spriteManager)
         {
             X = startX;
             Y = startY;
@@ -36,44 +40,30 @@ namespace GunVault.Models
             _angle = angle;
             Speed = speed;
             Damage = damage;
-            RemainingRange = range;
             CollidedWithTileType = null;
             
-            SolidColorBrush bulletFill = GetBulletColor(weaponType);
+            // По умолчанию пуля не взрывается
+            IsExplosive = false;
+            ExplosionRadius = 0;
+            ExplosionDamage = 0;
             
-            BulletShape = new Ellipse
+            if (spriteManager != null && !string.IsNullOrEmpty(spriteName))
             {
-                Width = BULLET_RADIUS * 2,
-                Height = BULLET_RADIUS * 2,
-                Fill = bulletFill,
-                Stroke = Brushes.White,
-                StrokeThickness = 1
-            };
+                BulletShape = spriteManager.CreateSpriteImage(spriteName, BULLET_RADIUS * 2, BULLET_RADIUS * 2);
+            }
+            else
+            {
+                BulletShape = new Ellipse
+                {
+                    Width = BULLET_RADIUS * 2,
+                    Height = BULLET_RADIUS * 2,
+                    Fill = Brushes.Yellow,
+                    Stroke = Brushes.White,
+                    StrokeThickness = 1
+                };
+            }
             
             UpdatePosition();
-        }
-        
-        private SolidColorBrush GetBulletColor(WeaponType weaponType)
-        {
-            switch (weaponType)
-            {
-                case WeaponType.Pistol:
-                    return new SolidColorBrush(Colors.Yellow);
-                case WeaponType.Shotgun:
-                    return new SolidColorBrush(Colors.Orange);
-                case WeaponType.AssaultRifle:
-                    return new SolidColorBrush(Colors.LimeGreen);
-                case WeaponType.Sniper:
-                    return new SolidColorBrush(Colors.DeepSkyBlue);
-                case WeaponType.MachineGun:
-                    return new SolidColorBrush(Colors.LightGreen);
-                case WeaponType.RocketLauncher:
-                    return new SolidColorBrush(Colors.Red);
-                case WeaponType.Laser:
-                    return new SolidColorBrush(Colors.Magenta);
-                default:
-                    return new SolidColorBrush(Colors.White);
-            }
         }
         
         public void UpdatePosition()
@@ -92,11 +82,9 @@ namespace GunVault.Models
             X += Math.Cos(_angle) * moveDistance;
             Y += Math.Sin(_angle) * moveDistance;
             
-            RemainingRange -= moveDistance;
-            
             UpdatePosition();
             
-            return RemainingRange > 0;
+            return true; // Bullets now have infinite range, lifetime managed by GameManager
         }
         
         public bool Collides(Enemy enemy)
