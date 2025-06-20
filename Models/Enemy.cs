@@ -31,10 +31,13 @@ namespace GunVault.Models
         public Rectangle HealthBar { get; private set; }
         
         public DateTime CreationTime { get; private set; }
+        public double TimeUntilNextUpdate { get; set; }
+        private const double HEALTH_BAR_HEIGHT = 5;
+        private const double HEALTH_BAR_OFFSET = 10;
+        private Brush _originalBrush;
         
         private double _currentAngle = 0;
         private double _targetAngle = 0;
-        private Brush _originalBrush;
         private bool _isFlashing = false;
         private double _originalSpeed;
         
@@ -52,8 +55,12 @@ namespace GunVault.Models
             ScoreValue = scoreValue;
             DamageOnCollision = damageOnCollision;
             Type = type;
+            ExperienceValue = (int)(scoreValue * 0.5); // Примерное значение опыта
             CreationTime = DateTime.Now;
             
+            // Рандомизируем начальное время до обновления, чтобы распределить нагрузку
+            TimeUntilNextUpdate = new Random().NextDouble() * 0.2; 
+
             double offsetX = -15;
             double offsetY = 0;
 

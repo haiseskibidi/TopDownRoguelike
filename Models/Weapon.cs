@@ -139,5 +139,10 @@ namespace GunVault.Models
             else
                 return $"{CurrentAmmo}/{MaxAmmo}";
         }
+
+        public void UpdateReloadSpeed(double reloadSpeedModifier)
+        {
+            Console.WriteLine($"Время перезарядки для {Name} обновлено: {ReloadTime / reloadSpeedModifier:F2} сек.");
+        }
     }
 } 

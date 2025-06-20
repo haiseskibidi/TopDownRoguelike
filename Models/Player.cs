@@ -651,5 +651,72 @@ namespace GunVault.Models
             
             return spriteManagerField.GetValue(mainWindow) as SpriteManager;
         }
+
+        // Методы для временных бонусов
+        public void ModifyBulletSpeed(double amount)
+        {
+            BulletSpeedModifier += amount;
+            if (BulletSpeedModifier < 1.0) BulletSpeedModifier = 1.0;
+            Console.WriteLine($"Модификатор скорости пули изменен на {amount:F2}, текущее значение: {BulletSpeedModifier:F2}");
+        }
+        
+        public void ModifyBulletDamage(double amount)
+        {
+            BulletDamageModifier += amount;
+            if (BulletDamageModifier < 1.0) BulletDamageModifier = 1.0;
+            Console.WriteLine($"Модификатор урона пули изменен на {amount:F2}, текущее значение: {BulletDamageModifier:F2}");
+        }
+        
+        public void ModifyReloadSpeed(double amount)
+        {
+            ReloadSpeedModifier += amount;
+            if (ReloadSpeedModifier < 1.0) ReloadSpeedModifier = 1.0;
+            if (CurrentWeapon != null)
+            {
+                CurrentWeapon.UpdateReloadSpeed(ReloadSpeedModifier);
+            }
+            Console.WriteLine($"Модификатор скорости перезарядки изменен на {amount:F2}, текущее значение: {ReloadSpeedModifier:F2}");
+        }
+        
+        public void ModifyMovementSpeed(double amount)
+        {
+            MovementSpeed += amount;
+            if (MovementSpeed < PLAYER_SPEED) MovementSpeed = PLAYER_SPEED;
+            Console.WriteLine($"Скорость движения изменена на {amount:F2}, текущее значение: {MovementSpeed:F2}");
+        }
+        
+        public void ModifyHealthRegen(double amount)
+        {
+            HealthRegen += amount;
+            if (HealthRegen < 0) HealthRegen = 0;
+            Console.WriteLine($"Регенерация здоровья изменена на {amount:F2}, текущее значение: {HealthRegen:F2}");
+        }
+        
+        public void UpgradeMaxHealth(double amount)
+        {
+            double oldMaxHealth = MaxHealth;
+            MaxHealth += amount;
+            
+            // Увеличиваем текущее здоровье пропорционально
+            double healthPercentage = Health / oldMaxHealth;
+            Health = MaxHealth * healthPercentage;
+            
+            Console.WriteLine($"Максимальное здоровье увеличено на {amount:F0}, текущее значение: {MaxHealth:F0}");
+        }
+        
+        public void ReduceMaxHealth(double amount)
+        {
+            double oldMaxHealth = MaxHealth;
+            MaxHealth -= amount;
+            if (MaxHealth < 100) MaxHealth = 100;
+            
+            // Уменьшаем текущее здоровье, если оно превышает максимальное
+            if (Health > MaxHealth)
+            {
+                Health = MaxHealth;
+            }
+            
+            Console.WriteLine($"Максимальное здоровье уменьшено на {amount:F0}, текущее значение: {MaxHealth:F0}");
+        }
     }
 } 

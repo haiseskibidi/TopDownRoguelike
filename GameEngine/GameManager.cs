@@ -30,6 +30,8 @@ namespace GunVault.GameEngine
         private double _enemySpawnTimer;
         private double _enemySpawnRate = 2.0;
         private double _healthRegenTimer = 1.0; // Regenerate health every second
+        private double _enemyUpdateTimer = 0.0; // Таймер для оптимизации обновления врагов
+        private const double ENEMY_UPDATE_INTERVAL = 0.3; 
         private WeaponType _lastWeaponType;
         private const double INITIAL_SPAWN_RATE = 2.0;
         private const double MIN_SPAWN_RATE = 0.3;
@@ -39,6 +41,7 @@ namespace GunVault.GameEngine
         private const int MAX_ENEMIES_ON_SCREEN = 10;
         private const double EXPLOSION_EXPANSION_SPEED = 150.0;
         private SpriteManager _spriteManager;
+        private Dictionary<Enemy, Point> _enemyTargets; // Новое поле для хранения целей врагов
         public event EventHandler<int> ScoreChanged;
         public event EventHandler<string> WeaponChanged;
         public event EventHandler<int> EnemyKilled;
@@ -68,6 +71,23 @@ namespace GunVault.GameEngine
         private int _maxEnemiesPerThread = 10;
         private int _processingThreadCount = 0;
 
+        // Добавляем новые поля для сундуков
+        private List<TreasureChest> _treasureChests;
+        private List<TemporaryBoost> _activeBoosts;
+        private double _chestSpawnTimer;
+        private double _chestSpawnRate = 1.0; // Новый сундук каждые 30 секунд
+        private const int MAX_CHESTS_ON_SCREEN = 5;
+        private const double MIN_CHEST_SPAWN_DISTANCE_FROM_PLAYER = 300.0;
+        private const double MIN_CHEST_SPAWN_DISTANCE_FROM_CHEST = 200.0;
+        private const double CHECK_CHEST_INTERACTION_INTERVAL = 0.5;
+        private double _chestInteractionTimer;
+        
+        // Добавляем новое событие для уведомления о сундуках
+        public event EventHandler<string> TreasureFound;
+        public event EventHandler<int> SkillPointsAdded;
+        public event EventHandler<int> ExperienceAdded; // Новое событие для опыта
+        public event EventHandler<string> BoostActivated;
+
         public GameManager(Canvas gameCanvas, Player player, double gameWidth, double gameHeight, SpriteManager spriteManager = null)
         {
             _gameCanvas = gameCanvas;
@@ -85,6 +105,7 @@ namespace GunVault.GameEngine
             _enemySpawnTimer = 0;
             _enemySpawnRate = INITIAL_SPAWN_RATE;
             _lastWeaponType = _player.GetWeaponType();
+            _enemyTargets = new Dictionary<Enemy, Point>(); // Инициализация
             
             _enemyUpdateQueue = new ConcurrentQueue<Enemy>();
             _enemyProcessingCancellation = new CancellationTokenSource();
@@ -126,6 +147,11 @@ namespace GunVault.GameEngine
                 StartEnemyProcessingTask();
                 Console.WriteLine("Многопоточная обработка врагов активирована");
             }
+
+            _treasureChests = new List<TreasureChest>();
+            _activeBoosts = new List<TemporaryBoost>();
+            _chestSpawnTimer = 5.0; // Первый сундук появится через 5 секунд
+            _chestInteractionTimer = 0;
         }
         
         private void InitializeChunks()
@@ -171,6 +197,41 @@ namespace GunVault.GameEngine
                 _enemyDespawnCheckTimer = ENEMY_DESPAWN_CHECK_INTERVAL;
             }
             
+            // Динамическое обновление врагов
+            foreach (var enemy in _enemies)
+            {
+                enemy.TimeUntilNextUpdate -= deltaTime;
+            
+                if (enemy.TimeUntilNextUpdate <= 0)
+                {
+                    // Обновляем цель
+                    _enemyTargets[enemy] = new Point(_player.X, _player.Y);
+            
+                    // Рассчитываем расстояние до игрока
+                    double distance = Math.Sqrt(Math.Pow(enemy.X - _player.X, 2) + Math.Pow(enemy.Y - _player.Y, 2));
+            
+                    // Устанавливаем новый интервал в зависимости от расстояния
+                    if (distance < 500)
+                    {
+                        enemy.TimeUntilNextUpdate = 0.3;
+                    }
+                    else if (distance < 1000)
+                    {
+                        enemy.TimeUntilNextUpdate = 0.4; 
+                    }
+                    else
+                    {
+                        enemy.TimeUntilNextUpdate = 1.0;
+                    }
+                }
+            
+                // Враг всегда движется к своей цели
+                if (_enemyTargets.TryGetValue(enemy, out Point target))
+                {
+                    enemy.MoveTowardsPlayer(target.X, target.Y, deltaTime);
+                }
+            }
+
             CheckWeaponUpgrade();
             _enemySpawnTimer -= deltaTime;
             if (_enemySpawnTimer <= 0)
@@ -192,19 +253,6 @@ namespace GunVault.GameEngine
             if (nearestEnemy != null)
             {
                 targetPoint = new Point(nearestEnemy.X, nearestEnemy.Y);
-            }
-            
-            foreach (var enemy in _enemies)
-            {
-                bool isInViewOrNear = _camera.IsInView(
-                    enemy.X - 50, enemy.Y - 50, 
-                    100, 100
-                );
-                
-                if (isInViewOrNear)
-                {
-                    enemy.MoveTowardsPlayer(_player.X, _player.Y, deltaTime);
-                }
             }
             
             Point mousePosition = Mouse.GetPosition(_gameCanvas);
@@ -241,6 +289,28 @@ namespace GunVault.GameEngine
             UpdateExplosions(deltaTime);
             UpdateBulletImpacts(deltaTime);
             CheckCollisions();
+
+            // Обновление таймера взаимодействия с сундуками
+            _chestInteractionTimer -= deltaTime;
+            if (_chestInteractionTimer <= 0)
+            {
+                CheckChestInteractions();
+                _chestInteractionTimer = CHECK_CHEST_INTERACTION_INTERVAL;
+            }
+            
+            // Обновление таймера появления сундуков
+            _chestSpawnTimer -= deltaTime;
+            if (_chestSpawnTimer <= 0)
+            {
+                if (_treasureChests.Count < MAX_CHESTS_ON_SCREEN)
+                {
+                    SpawnTreasureChest();
+                }
+                _chestSpawnTimer = _chestSpawnRate;
+            }
+            
+            // Обновление активных бонусов
+            UpdateActiveBoosts(deltaTime);
         }
 
         public void HandleKeyPress(KeyEventArgs e)
@@ -603,6 +673,7 @@ namespace GunVault.GameEngine
                             EnemyKilled?.Invoke(this, enemy.ExperienceValue);
                             _worldContainer.Children.Remove(enemy.EnemyShape);
                             _worldContainer.Children.Remove(enemy.HealthBar);
+                            _enemyTargets.Remove(enemy);
                             _enemies.RemoveAt(j);
                         }
                         break;
@@ -625,6 +696,7 @@ namespace GunVault.GameEngine
                             EnemyKilled?.Invoke(this, _enemies[j].ExperienceValue);
                             _worldContainer.Children.Remove(_enemies[j].EnemyShape);
                             _worldContainer.Children.Remove(_enemies[j].HealthBar);
+                            _enemyTargets.Remove(_enemies[j]);
                             _enemies.RemoveAt(j);
                         }
                     }
@@ -640,6 +712,7 @@ namespace GunVault.GameEngine
                     _player.TakeDamage(enemy.DamageOnCollision);
                     _worldContainer.Children.Remove(enemy.EnemyShape);
                     _worldContainer.Children.Remove(enemy.HealthBar);
+                    _enemyTargets.Remove(enemy);
                     _enemies.RemoveAt(i);
                 }
             }
@@ -791,6 +864,7 @@ namespace GunVault.GameEngine
                     ScoreChanged?.Invoke(this, _score);
                     _worldContainer.Children.Remove(enemy.EnemyShape);
                     _worldContainer.Children.Remove(enemy.HealthBar);
+                    _enemyTargets.Remove(enemy);
                     _enemies.Remove(enemy);
                 }
             }
@@ -892,6 +966,7 @@ namespace GunVault.GameEngine
                     // Удаляем враждебный объект с экрана
                     _worldContainer.Children.Remove(enemy.EnemyShape);
                     _worldContainer.Children.Remove(enemy.HealthBar);
+                    _enemyTargets.Remove(enemy);
                     _enemies.Remove(enemy);
                 }
                 
@@ -1100,6 +1175,243 @@ namespace GunVault.GameEngine
         {
             // Восстанавливаем врагов из их состояний
             RestoreEnemiesFromState(e.EnemiesToRestore);
+        }
+
+        // Метод для спавна сундука с сокровищами
+        private void SpawnTreasureChest()
+        {
+            // Определяем позицию для сундука
+            double x, y;
+            int maxAttempts = 50;
+            int attempts = 0;
+            bool validPosition = false;
+            
+            do
+            {
+                attempts++;
+                
+                // Генерируем случайную позицию в пределах мира
+                x = _random.NextDouble() * _worldWidth;
+                y = _random.NextDouble() * _worldHeight;
+                
+                // Проверяем, что позиция достаточно далеко от игрока
+                double distanceToPlayer = Math.Sqrt(Math.Pow(_player.X - x, 2) + Math.Pow(_player.Y - y, 2));
+                if (distanceToPlayer < MIN_CHEST_SPAWN_DISTANCE_FROM_PLAYER)
+                    continue;
+                
+                // Проверяем, что позиция достаточно далеко от других сундуков
+                bool tooCloseToOtherChests = false;
+                foreach (var chest in _treasureChests)
+                {
+                    double distanceToChest = Math.Sqrt(Math.Pow(chest.X - x, 2) + Math.Pow(chest.Y - y, 2));
+                    if (distanceToChest < MIN_CHEST_SPAWN_DISTANCE_FROM_CHEST)
+                    {
+                        tooCloseToOtherChests = true;
+                        break;
+                    }
+                }
+                
+                if (tooCloseToOtherChests)
+                    continue;
+                
+                // Проверяем, что позиция на проходимом тайле
+                if (!IsTileWalkable(x, y))
+                    continue;
+                
+                validPosition = true;
+            } while (!validPosition && attempts < maxAttempts);
+            
+            if (validPosition)
+            {
+                // Создаем сундук
+                TreasureChest chest = new TreasureChest(x, y, _spriteManager);
+                _treasureChests.Add(chest);
+                
+                // Добавляем изображение сундука на канвас
+                _worldContainer.Children.Add(chest.ChestImage);
+                
+                Console.WriteLine($"Сундук с сокровищами создан на позиции ({x:F1}, {y:F1})");
+            }
+        }
+        
+        // Метод для проверки взаимодействия игрока с сундуками
+        private void CheckChestInteractions()
+        {
+            foreach (var chest in _treasureChests)
+            {
+                if (chest.IsCollected)
+                    continue;
+                
+                if (chest.IsPlayerInRange(_player) && !chest.IsOpen)
+                {
+                    chest.Open();
+                    string treasureDescription = chest.Collect();
+
+                    // Сначала показываем общее уведомление о находке
+                    TreasureFound?.Invoke(this, treasureDescription);
+
+                    // Затем применяем эффект и показываем конкретное уведомление
+                    ApplyChestEffect(chest);
+
+                    // Запланируем удаление сундука
+                    Task.Delay(5000).ContinueWith(_ => 
+                    {
+                        Application.Current.Dispatcher.Invoke(() => 
+                        {
+                            if (_treasureChests.Contains(chest))
+                            {
+                                _worldContainer.Children.Remove(chest.ChestImage);
+                                _treasureChests.Remove(chest);
+                            }
+                        });
+                    });
+                }
+            }
+        }
+        
+        // Метод для применения эффекта сундука
+        private void ApplyChestEffect(TreasureChest chest)
+        {
+            if (chest.TreasureType == TreasureType.SkillPoints)
+            {
+                // Вызываем событие для добавления очков навыков
+                SkillPointsAdded?.Invoke(this, chest.SkillPointsAmount);
+            }
+            else if (chest.TreasureType == TreasureType.Experience)
+            {
+                // Вызываем событие для добавления опыта
+                ExperienceAdded?.Invoke(this, chest.ExperienceAmount);
+            }
+            else
+            {
+                // Проверяем, есть ли уже активный бонус такого типа
+                TemporaryBoost existingBoost = _activeBoosts.Find(b => b.BoostType == chest.TreasureType);
+                
+                if (existingBoost != null)
+                {
+                    existingBoost.Extend(chest.BoostDuration);
+                    if (existingBoost.Amount < chest.BoostAmount)
+                    {
+                        double oldAmount = existingBoost.Amount;
+                        existingBoost.Increase(chest.BoostAmount - oldAmount);
+                    }
+                    BoostActivated?.Invoke(this, $"Бонус продлен на {chest.BoostDuration:F0} сек.!");
+                }
+                else
+                {
+                    TemporaryBoost newBoost = new TemporaryBoost(chest.TreasureType, chest.BoostAmount, chest.BoostDuration);
+                    _activeBoosts.Add(newBoost);
+                    ApplyBoostToPlayer(newBoost, true);
+                    BoostActivated?.Invoke(this, $"Бонус '{newBoost.GetBoostName()}' активирован!");
+                }
+            }
+        }
+        
+        // Метод для обновления активных бонусов
+        private void UpdateActiveBoosts(double deltaTime)
+        {
+            List<TemporaryBoost> boostsToRemove = new List<TemporaryBoost>();
+            
+            foreach (var boost in _activeBoosts)
+            {
+                // Запоминаем, был ли бонус активен до обновления
+                bool wasActive = boost.IsActive;
+                
+                // Обновляем оставшееся время
+                boost.Update(deltaTime);
+                
+                // Если бонус был активен, но стал неактивным, снимаем его эффект
+                if (wasActive && !boost.IsActive)
+                {
+                    ApplyBoostToPlayer(boost, false);
+                    boostsToRemove.Add(boost);
+                }
+            }
+            
+            // Удаляем неактивные бонусы
+            foreach (var boost in boostsToRemove)
+            {
+                _activeBoosts.Remove(boost);
+            }
+        }
+        
+        // Метод для применения/снятия бонуса к игроку
+        private void ApplyBoostToPlayer(TemporaryBoost boost, bool apply)
+        {
+            double amount = apply ? boost.Amount : -boost.Amount;
+            
+            switch (boost.BoostType)
+            {
+                case TreasureType.HealthRegenBoost:
+                    _player.Heal(0); // Вызываем метод для обновления UI
+                    break;
+                case TreasureType.MaxHealthBoost:
+                    if (apply)
+                    {
+                        _player.UpgradeMaxHealth(boost.Amount);
+                    }
+                    else
+                    {
+                        _player.ReduceMaxHealth(boost.Amount);
+                    }
+                    break;
+                case TreasureType.BulletSpeedBoost:
+                    _player.ModifyBulletSpeed(amount);
+                    break;
+                case TreasureType.BulletDamageBoost:
+                    _player.ModifyBulletDamage(amount);
+                    break;
+                case TreasureType.ReloadSpeedBoost:
+                    _player.ModifyReloadSpeed(amount);
+                    break;
+                case TreasureType.MovementSpeedBoost:
+                    _player.ModifyMovementSpeed(amount);
+                    break;
+            }
+        }
+        
+        // Метод для получения информации об активных бонусах
+        public List<string> GetActiveBoostsInfo()
+        {
+            List<string> boostsInfo = new List<string>();
+            
+            foreach (var boost in _activeBoosts)
+            {
+                string boostName = "";
+                string boostValue = "";
+                
+                switch (boost.BoostType)
+                {
+                    case TreasureType.HealthRegenBoost:
+                        boostName = "Регенерация";
+                        boostValue = $"+{boost.Amount}";
+                        break;
+                    case TreasureType.MaxHealthBoost:
+                        boostName = "Макс. здоровье";
+                        boostValue = $"+{boost.Amount}";
+                        break;
+                    case TreasureType.BulletSpeedBoost:
+                        boostName = "Скорость пуль";
+                        boostValue = $"+{boost.Amount * 100}%";
+                        break;
+                    case TreasureType.BulletDamageBoost:
+                        boostName = "Урон пуль";
+                        boostValue = $"+{boost.Amount * 100}%";
+                        break;
+                    case TreasureType.ReloadSpeedBoost:
+                        boostName = "Скорость перезарядки";
+                        boostValue = $"+{boost.Amount * 100}%";
+                        break;
+                    case TreasureType.MovementSpeedBoost:
+                        boostName = "Скорость движения";
+                        boostValue = $"+{boost.Amount}";
+                        break;
+                }
+                
+                boostsInfo.Add($"{boostName}: {boostValue} ({boost.GetRemainingTimeText()})");
+            }
+            
+            return boostsInfo;
         }
     }
 } 

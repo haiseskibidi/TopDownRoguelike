@@ -8,6 +8,7 @@ using GunVault.GameEngine;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Windows.Media;
+using System.Collections.Generic;
 
 namespace GunVault;
 
@@ -48,6 +49,19 @@ public partial class MainWindow : Window
     
     // Флаг для отслеживания состояния игрока
     private bool _playerIsDead = false;
+    
+    private System.Windows.Threading.DispatcherTimer? _treasureNotificationTimer;
+    private System.Windows.Threading.DispatcherTimer? _activeBoostsUpdateTimer;
+    private List<string> _activeBoosts = new List<string>();
+    
+    // Обработчик таймера уведомления о бонусе
+    private System.Windows.Threading.DispatcherTimer? _boostNotificationTimer;
+    
+    // Новый метод для отображения уведомления об очках навыков
+    private System.Windows.Threading.DispatcherTimer? _skillPointsNotificationTimer;
+    
+    // Таймер для уведомления о получении опыта
+    private System.Windows.Threading.DispatcherTimer? _experienceNotificationTimer;
     
     public MainWindow()
     {
@@ -103,6 +117,17 @@ public partial class MainWindow : Window
             _deathCheckTimer.Tick += DeathCheckTimer_Tick;
             _deathCheckTimer.Interval = TimeSpan.FromSeconds(0.5); // Проверяем каждые 0.5 секунд
             _deathCheckTimer.Start();
+            
+            // Инициализируем таймер для уведомлений о сундуках
+            _treasureNotificationTimer = new System.Windows.Threading.DispatcherTimer();
+            _treasureNotificationTimer.Tick += TreasureNotificationTimer_Tick;
+            _treasureNotificationTimer.Interval = TimeSpan.FromSeconds(4); // Уведомление исчезнет через 4 секунды
+            
+            // Инициализируем таймер для обновления информации об активных бонусах
+            _activeBoostsUpdateTimer = new System.Windows.Threading.DispatcherTimer();
+            _activeBoostsUpdateTimer.Tick += ActiveBoostsUpdateTimer_Tick;
+            _activeBoostsUpdateTimer.Interval = TimeSpan.FromSeconds(0.5); // Обновляем каждые 0.5 секунды
+            _activeBoostsUpdateTimer.Start();
         }
         catch (Exception ex)
         {
@@ -138,6 +163,10 @@ public partial class MainWindow : Window
             _gameManager.ScoreChanged += GameManager_ScoreChanged;
             _gameManager.WeaponChanged += GameManager_WeaponChanged;
             _gameManager.EnemyKilled += GameManager_EnemyKilled;
+            _gameManager.TreasureFound += GameManager_TreasureFound;
+            _gameManager.SkillPointsAdded += GameManager_SkillPointsAdded;
+            _gameManager.ExperienceAdded += GameManager_ExperienceAdded;
+            _gameManager.BoostActivated += GameManager_BoostActivated;
             
             // Инициализируем игровой цикл
             _gameLoop = new GameLoop(_gameManager, GameCanvas.ActualWidth, GameCanvas.ActualHeight);
@@ -178,6 +207,207 @@ public partial class MainWindow : Window
     private void GameManager_EnemyKilled(object sender, int experience)
     {
         AddExperience(experience);
+    }
+
+    // Обработчик события нахождения сундука
+    private void GameManager_TreasureFound(object sender, string treasureDescription)
+    {
+        ShowTreasureNotification(treasureDescription);
+    }
+    
+    // Обработчик события добавления очков навыков
+    private void GameManager_SkillPointsAdded(object sender, int skillPoints)
+    {
+        _skillPoints += skillPoints;
+        UpdatePlayerInfo();
+        
+        // Показываем окно характеристик
+        ShowStatsNotification();
+        
+        // Показываем уведомление о получении очков навыков
+        ShowSkillPointsNotification(skillPoints);
+    }
+    
+    // Обработчик события добавления опыта
+    private void GameManager_ExperienceAdded(object sender, int experience)
+    {
+        AddExperience(experience);
+        
+        // Показываем уведомление о получении опыта
+        ShowExperienceNotification(experience);
+    }
+    
+    // Вспомогательный метод для правильного склонения слова "очко"
+    private string GetSkillPointsText(int amount)
+    {
+        if (amount % 10 == 1 && amount % 100 != 11)
+            return "очко навыка";
+        else if ((amount % 10 == 2 || amount % 10 == 3 || amount % 10 == 4) && 
+                (amount % 100 < 10 || amount % 100 > 20))
+            return "очка навыков";
+        else
+            return "очков навыков";
+    }
+    
+    // Обработчик события активации бонуса
+    private void GameManager_BoostActivated(object sender, string message)
+    {
+        ShowBoostNotification(message);
+    }
+    
+    // Метод для отображения уведомления о сундуке
+    private void ShowTreasureNotification(string message)
+    {
+        // Инициализируем таймер, если он еще не был создан
+        if (_treasureNotificationTimer == null)
+        {
+            _treasureNotificationTimer = new System.Windows.Threading.DispatcherTimer();
+            _treasureNotificationTimer.Tick += TreasureNotificationTimer_Tick;
+            _treasureNotificationTimer.Interval = TimeSpan.FromSeconds(4); // Уведомление исчезнет через 4 секунды
+        }
+        
+        // Останавливаем таймер, если он активен
+        if (_treasureNotificationTimer.IsEnabled)
+        {
+            _treasureNotificationTimer.Stop();
+        }
+        
+        // Устанавливаем текст уведомления
+        NotificationBoostText.Text = message;
+        
+        // Показываем уведомление с анимацией
+        BoostNotification.Opacity = 0;
+        BoostNotification.Visibility = Visibility.Visible;
+        
+        // Анимация появления
+        DoubleAnimation fadeInAnimation = new DoubleAnimation
+        {
+            From = 0,
+            To = 1,
+            Duration = TimeSpan.FromSeconds(0.3)
+        };
+        
+        // Запускаем анимацию
+        BoostNotification.BeginAnimation(UIElement.OpacityProperty, fadeInAnimation);
+        
+        // Запускаем таймер для автоматического скрытия
+        _treasureNotificationTimer.Start();
+    }
+    
+    // Обработчик таймера уведомления о сундуке
+    private void TreasureNotificationTimer_Tick(object sender, EventArgs e)
+    {
+        _treasureNotificationTimer.Stop();
+        HideBoostNotification(); // Используем существующий метод для скрытия уведомления о бонусе
+    }
+    
+    // Обработчик таймера уведомления о бонусе
+    private void BoostNotificationTimer_Tick(object sender, EventArgs e)
+    {
+        _boostNotificationTimer?.Stop();
+        HideBoostNotification();
+    }
+    
+    // Метод для отображения уведомления о бонусе
+    private void ShowBoostNotification(string message)
+    {
+        // Инициализируем таймер, если он еще не был создан
+        if (_boostNotificationTimer == null)
+        {
+            _boostNotificationTimer = new System.Windows.Threading.DispatcherTimer();
+            _boostNotificationTimer.Tick += BoostNotificationTimer_Tick;
+            _boostNotificationTimer.Interval = TimeSpan.FromSeconds(4); // Уведомление исчезнет через 4 секунды
+        }
+        
+        // Останавливаем таймер, если он активен
+        if (_boostNotificationTimer.IsEnabled)
+        {
+            _boostNotificationTimer.Stop();
+        }
+        
+        // Устанавливаем текст уведомления
+        NotificationBoostText.Text = message;
+        
+        // Показываем уведомление с анимацией
+        BoostNotification.Opacity = 0;
+        BoostNotification.Visibility = Visibility.Visible;
+        
+        // Анимация появления
+        DoubleAnimation fadeInAnimation = new DoubleAnimation
+        {
+            From = 0,
+            To = 1,
+            Duration = TimeSpan.FromSeconds(0.3)
+        };
+        
+        // Запускаем анимацию
+        BoostNotification.BeginAnimation(UIElement.OpacityProperty, fadeInAnimation);
+        
+        // Запускаем таймер для автоматического скрытия
+        _boostNotificationTimer.Start();
+    }
+    
+    // Скрывает уведомление о бонусе с анимацией
+    private void HideBoostNotification()
+    {
+        // Анимация прозрачности
+        DoubleAnimation fadeOutAnimation = new DoubleAnimation
+        {
+            From = 1,
+            To = 0,
+            Duration = TimeSpan.FromSeconds(0.5)
+        };
+        
+        // По завершении анимации скрываем элемент полностью
+        fadeOutAnimation.Completed += (s, e) => BoostNotification.Visibility = Visibility.Collapsed;
+        
+        // Запускаем анимацию
+        BoostNotification.BeginAnimation(UIElement.OpacityProperty, fadeOutAnimation);
+    }
+    
+    // Обработчик таймера обновления активных бонусов
+    private void ActiveBoostsUpdateTimer_Tick(object sender, EventArgs e)
+    {
+        if (_gameManager != null)
+        {
+            _activeBoosts = _gameManager.GetActiveBoostsInfo();
+            UpdateActiveBoostsUI();
+        }
+    }
+    
+    // Метод для обновления UI активных бонусов
+    private void UpdateActiveBoostsUI()
+    {
+        if (_activeBoosts.Count > 0)
+        {
+            // Очищаем предыдущие элементы, оставляя только заголовок
+            while (ActiveBoostsList.Children.Count > 1)
+            {
+                ActiveBoostsList.Children.RemoveAt(1);
+            }
+            
+            // Добавляем информацию о каждом активном бонусе
+            foreach (var boostInfo in _activeBoosts)
+            {
+                TextBlock boostText = new TextBlock
+                {
+                    Text = boostInfo,
+                    Foreground = Brushes.White,
+                    FontSize = 12,
+                    Margin = new Thickness(0, 2, 0, 2)
+                };
+                
+                ActiveBoostsList.Children.Add(boostText);
+            }
+            
+            // Показываем панель с бонусами
+            ActiveBoostsPanel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            // Если нет активных бонусов, скрываем панель
+            ActiveBoostsPanel.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void AddExperience(int amount)
@@ -324,37 +554,6 @@ public partial class MainWindow : Window
         }
     }
     
-    // Отображение обычного уведомления
-    private void ShowNotification(string message)
-    {
-        // Останавливаем таймер, если он активен
-        if (_notificationTimer!.IsEnabled)
-        {
-            _notificationTimer.Stop();
-        }
-        
-        // Устанавливаем текст уведомления
-        NotificationWeaponName.Text = message;
-        
-        // Показываем уведомление с анимацией
-        WeaponNotification.Opacity = 0;
-        WeaponNotification.Visibility = Visibility.Visible;
-        
-        // Анимация появления
-        DoubleAnimation fadeInAnimation = new DoubleAnimation
-        {
-            From = 0,
-            To = 1,
-            Duration = TimeSpan.FromSeconds(0.3)
-        };
-        
-        // Запускаем анимацию
-        WeaponNotification.BeginAnimation(UIElement.OpacityProperty, fadeInAnimation);
-        
-        // Запускаем таймер для автоматического скрытия
-        _notificationTimer.Start();
-    }
-    
     // Обработка изменения размера окна
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
     {
@@ -438,7 +637,7 @@ public partial class MainWindow : Window
             if (usedSkillPoint && _skillPoints == 0)
             {
                 _statsNotificationTimer!.Stop();
-                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(1.5);
                 _statsNotificationTimer.Start();
             }
         }
@@ -544,6 +743,10 @@ public partial class MainWindow : Window
                 _gameManager.ScoreChanged += GameManager_ScoreChanged;
                 _gameManager.WeaponChanged += GameManager_WeaponChanged;
                 _gameManager.EnemyKilled += GameManager_EnemyKilled;
+                _gameManager.TreasureFound += GameManager_TreasureFound;
+                _gameManager.SkillPointsAdded += GameManager_SkillPointsAdded;
+                _gameManager.ExperienceAdded += GameManager_ExperienceAdded;
+                _gameManager.BoostActivated += GameManager_BoostActivated;
             });
             
             if (cancellationToken.IsCancellationRequested) return;
@@ -682,7 +885,6 @@ public partial class MainWindow : Window
     private void LoadingAnimation_Tick(object sender, EventArgs e)
     {
         _animationDotCount = (_animationDotCount + 1) % 4;
-        LoadingStatusText.Text = "ЗАГРУЗКА МИРА" + new string('.', _animationDotCount);
     }
 
     private void ShowStatsNotification()
@@ -711,7 +913,7 @@ public partial class MainWindow : Window
         // Запускаем таймер автоматического скрытия только если нет доступных очков навыков
         if (_skillPoints == 0)
         {
-            _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5); // Окно исчезнет через 3.5 секунды
+            _statsNotificationTimer.Interval = TimeSpan.FromSeconds(1.5); // Окно исчезнет через 1.5 секунды
             _statsNotificationTimer.Start();
         }
     }
@@ -782,7 +984,7 @@ public partial class MainWindow : Window
             if (_skillPoints == 0)
             {
                 _statsNotificationTimer!.Stop();
-                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(1.5);
                 _statsNotificationTimer.Start();
             }
         }
@@ -801,7 +1003,7 @@ public partial class MainWindow : Window
             if (_skillPoints == 0)
             {
                 _statsNotificationTimer!.Stop();
-                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(1.5);
                 _statsNotificationTimer.Start();
             }
         }
@@ -825,7 +1027,7 @@ public partial class MainWindow : Window
             if (_skillPoints == 0)
             {
                 _statsNotificationTimer!.Stop();
-                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(1.5);
                 _statsNotificationTimer.Start();
             }
         }
@@ -844,7 +1046,7 @@ public partial class MainWindow : Window
             if (_skillPoints == 0)
             {
                 _statsNotificationTimer!.Stop();
-                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(1.5);
                 _statsNotificationTimer.Start();
             }
         }
@@ -863,7 +1065,7 @@ public partial class MainWindow : Window
             if (_skillPoints == 0)
             {
                 _statsNotificationTimer!.Stop();
-                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(1.5);
                 _statsNotificationTimer.Start();
             }
         }
@@ -887,7 +1089,7 @@ public partial class MainWindow : Window
             if (_skillPoints == 0)
             {
                 _statsNotificationTimer!.Stop();
-                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(3.5);
+                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(1.5);
                 _statsNotificationTimer.Start();
             }
         }
@@ -989,18 +1191,28 @@ public partial class MainWindow : Window
             // Обновляем обработчик ввода
             _inputHandler = new InputHandler(_player);
             
-            // Обновляем менеджер игры
-            _gameManager.UpdatePlayer(_player);
-            
-            // Добавляем игрока на мировой контейнер через GameManager
-            _gameManager.AddPlayerToWorld(_player);
-            
             // Сбрасываем уровень и очки
             _playerLevel = 1;
             _playerExperience = 0;
             _experienceToNextLevel = 100;
             _skillPoints = 0;
             _score = 0;
+            
+            // Сбрасываем счет в GameManager
+            // Получаем доступ к закрытому полю _score в GameManager с помощью рефлексии
+            var scoreField = _gameManager.GetType().GetField("_score", 
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            
+            if (scoreField != null)
+            {
+                scoreField.SetValue(_gameManager, 0);
+            }
+            
+            // Обновляем менеджер игры
+            _gameManager.UpdatePlayer(_player);
+            
+            // Добавляем игрока на мировой контейнер через GameManager
+            _gameManager.AddPlayerToWorld(_player);
             
             // Обновляем информацию об игроке
             UpdatePlayerInfo();
@@ -1020,5 +1232,133 @@ public partial class MainWindow : Window
     {
         HideDeathNotification();
         RespawnPlayer();
+    }
+
+    // Новый метод для отображения уведомления об очках навыков
+    private void ShowSkillPointsNotification(int skillPoints)
+    {
+        // Инициализируем таймер, если он еще не был создан
+        if (_skillPointsNotificationTimer == null)
+        {
+            _skillPointsNotificationTimer = new System.Windows.Threading.DispatcherTimer();
+            _skillPointsNotificationTimer.Tick += SkillPointsNotificationTimer_Tick;
+            _skillPointsNotificationTimer.Interval = TimeSpan.FromSeconds(4); // Уведомление исчезнет через 4 секунды
+        }
+        
+        // Останавливаем таймер, если он активен
+        if (_skillPointsNotificationTimer.IsEnabled)
+        {
+            _skillPointsNotificationTimer.Stop();
+        }
+        
+        // Устанавливаем текст уведомления
+        NotificationSkillPointsText.Text = $"Получено {skillPoints} {GetSkillPointsText(skillPoints)}";
+        
+        // Показываем уведомление с анимацией
+        SkillPointsNotification.Opacity = 0;
+        SkillPointsNotification.Visibility = Visibility.Visible;
+        
+        // Анимация появления
+        DoubleAnimation fadeInAnimation = new DoubleAnimation
+        {
+            From = 0,
+            To = 1,
+            Duration = TimeSpan.FromSeconds(0.3)
+        };
+        
+        // Запускаем анимацию
+        SkillPointsNotification.BeginAnimation(UIElement.OpacityProperty, fadeInAnimation);
+        
+        // Запускаем таймер для автоматического скрытия
+        _skillPointsNotificationTimer.Start();
+    }
+    
+    // Обработчик таймера уведомления об очках навыков
+    private void SkillPointsNotificationTimer_Tick(object sender, EventArgs e)
+    {
+        _skillPointsNotificationTimer?.Stop();
+        HideSkillPointsNotification();
+    }
+    
+    // Скрывает уведомление об очках навыков с анимацией
+    private void HideSkillPointsNotification()
+    {
+        // Анимация прозрачности
+        DoubleAnimation fadeOutAnimation = new DoubleAnimation
+        {
+            From = 1,
+            To = 0,
+            Duration = TimeSpan.FromSeconds(0.5)
+        };
+        
+        // По завершении анимации скрываем элемент полностью
+        fadeOutAnimation.Completed += (s, e) => SkillPointsNotification.Visibility = Visibility.Collapsed;
+        
+        // Запускаем анимацию
+        SkillPointsNotification.BeginAnimation(UIElement.OpacityProperty, fadeOutAnimation);
+    }
+
+    // Метод для отображения уведомления о получении опыта
+    private void ShowExperienceNotification(int experience)
+    {
+        // Инициализируем таймер, если он еще не был создан
+        if (_experienceNotificationTimer == null)
+        {
+            _experienceNotificationTimer = new System.Windows.Threading.DispatcherTimer();
+            _experienceNotificationTimer.Tick += ExperienceNotificationTimer_Tick;
+            _experienceNotificationTimer.Interval = TimeSpan.FromSeconds(4); // Уведомление исчезнет через 4 секунды
+        }
+        
+        // Останавливаем таймер, если он активен
+        if (_experienceNotificationTimer.IsEnabled)
+        {
+            _experienceNotificationTimer.Stop();
+        }
+        
+        // Устанавливаем текст уведомления
+        NotificationExperienceText.Text = $"Получено {experience} единиц опыта!";
+        
+        // Показываем уведомление с анимацией
+        ExperienceNotification.Opacity = 0;
+        ExperienceNotification.Visibility = Visibility.Visible;
+        
+        // Анимация появления
+        DoubleAnimation fadeInAnimation = new DoubleAnimation
+        {
+            From = 0,
+            To = 1,
+            Duration = TimeSpan.FromSeconds(0.3)
+        };
+        
+        // Запускаем анимацию
+        ExperienceNotification.BeginAnimation(UIElement.OpacityProperty, fadeInAnimation);
+        
+        // Запускаем таймер для автоматического скрытия
+        _experienceNotificationTimer.Start();
+    }
+    
+    // Обработчик таймера уведомления о получении опыта
+    private void ExperienceNotificationTimer_Tick(object sender, EventArgs e)
+    {
+        _experienceNotificationTimer?.Stop();
+        HideExperienceNotification();
+    }
+    
+    // Скрывает уведомление о получении опыта с анимацией
+    private void HideExperienceNotification()
+    {
+        // Анимация прозрачности
+        DoubleAnimation fadeOutAnimation = new DoubleAnimation
+        {
+            From = 1,
+            To = 0,
+            Duration = TimeSpan.FromSeconds(0.5)
+        };
+        
+        // По завершении анимации скрываем элемент полностью
+        fadeOutAnimation.Completed += (s, e) => ExperienceNotification.Visibility = Visibility.Collapsed;
+        
+        // Запускаем анимацию
+        ExperienceNotification.BeginAnimation(UIElement.OpacityProperty, fadeOutAnimation);
     }
 }
