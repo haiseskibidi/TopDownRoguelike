@@ -363,12 +363,12 @@ public partial class MainWindow : Window
         sb.Completed += (s, e) => 
         {
             // Запускаем таймер на скрытие после завершения анимации появления
-            _notificationTimer.Start();
+        _notificationTimer.Start();
         };
 
         sb.Begin();
     }
-
+    
     private void NotificationTimer_Tick(object? sender, EventArgs e)
     {
         _notificationTimer.Stop();

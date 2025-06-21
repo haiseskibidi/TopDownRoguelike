@@ -39,8 +39,8 @@ namespace GunVault.Models
         {
             { EnemyType.Basic, new EnemyConfig(health: 30, speed: 60, radius: 15, score: 30, sprite: "enemy1") },
             { EnemyType.Runner, new EnemyConfig(health: 20, speed: 100, radius: 13, score: 15, sprite: "enemy2") },
-            { EnemyType.Tank, new EnemyConfig(health: 100, speed: 30, radius: 20, score: 25, sprite: "enemy1") },
-            { EnemyType.Bomber, new EnemyConfig(health: 40, speed: 50, radius: 18, score: 20, sprite: "enemy1", damage: 20) },
+            { EnemyType.Tank, new EnemyConfig(health: 200, speed: 30, radius: 20, score: 25, sprite: "enemy3") },
+            { EnemyType.Bomber, new EnemyConfig(health: 75, speed: 50, radius: 18, score: 20, sprite: "enemy4", damage: 20) },
             { EnemyType.Boss, new EnemyConfig(health: 300, speed: 25, radius: 30, score: 100, sprite: "enemy1", damage: 40) }
         };
         

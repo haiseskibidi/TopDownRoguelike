@@ -50,6 +50,7 @@ namespace GunVault.Models
         
         private double _currentAngle = 0;
         private double _targetAngle = 0;
+        private readonly SpriteManager? _spriteManager;
         
         // Уровни характеристик игрока
         public int HealthRegenUpgradeLevel { get; private set; } = 0;
@@ -78,6 +79,7 @@ namespace GunVault.Models
             BulletDamageModifier = 1.0;
             ReloadSpeedModifier = 1.0;
             MovementSpeed = 5.0;
+            _spriteManager = spriteManager;
             
             InitializeCollider();
             
@@ -179,21 +181,7 @@ namespace GunVault.Models
             
             try
             {
-                var mainWindow = Application.Current.MainWindow as GunVault.MainWindow;
-                SpriteManager spriteManager = null;
-                
-                if (mainWindow != null)
-                {
-                    var field = mainWindow.GetType().GetField("_spriteManager", 
-                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    
-                    if (field != null)
-                    {
-                        spriteManager = field.GetValue(mainWindow) as SpriteManager;
-                    }
-                }
-                
-                UpdatePlayerSprite(spriteManager, canvas);
+                UpdatePlayerSprite(_spriteManager, canvas);
             }
             catch (Exception ex)
             {
@@ -437,6 +425,10 @@ namespace GunVault.Models
         public void TakeDamage(double damage)
         {
             Health -= damage;
+            if (Health < 0)
+            {
+                Health = 0;
+            }
         }
         
         public void Heal(double amount)
@@ -492,30 +484,6 @@ namespace GunVault.Models
                     bulletParamsList.Add(bulletParams);
                 }
                 return bulletParamsList;
-            }
-            return null;
-        }
-        
-        public LaserBeam ShootLaser(Point targetPoint)
-        {
-            if (CurrentWeapon.CanShoot())
-            {
-                CurrentWeapon.Shoot();
-
-                double angle = Math.Atan2(targetPoint.Y - Y, targetPoint.X - X);
-                
-                double muzzleOffsetX = 30;
-                double muzzleX = X + Math.Cos(angle) * muzzleOffsetX;
-                double muzzleY = Y + Math.Sin(angle) * muzzleOffsetX;
-
-                var laser = new LaserBeam(
-                    muzzleX,
-                    muzzleY,
-                    angle,
-                    CurrentWeapon.Damage * BulletDamageModifier,
-                    CurrentWeapon.Range
-                );
-                return laser;
             }
             return null;
         }
@@ -577,9 +545,6 @@ namespace GunVault.Models
                     spriteName = "player_pistol";
                     break;
                 case WeaponType.RocketLauncher:
-                    spriteName = "player_pistol";
-                    break;
-                case WeaponType.Laser:
                     spriteName = "player_pistol";
                     break;
                 default:
@@ -647,17 +612,18 @@ namespace GunVault.Models
         private SpriteManager GetSpriteManager()
         {
             var mainWindow = Application.Current.MainWindow as GunVault.MainWindow;
-            if (mainWindow == null) return null;
-            
-            var spriteManagerField = mainWindow.GetType().GetField("_spriteManager", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            
-            if (spriteManagerField == null) return null;
-            
-            return spriteManagerField.GetValue(mainWindow) as SpriteManager;
+            if (mainWindow != null)
+            {
+                var field = mainWindow.GetType().GetField("_spriteManager", 
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (field != null)
+                {
+                    return field.GetValue(mainWindow) as SpriteManager;
+                }
+            }
+            return null;
         }
-
-        // Методы для временных бонусов
+        
         public void ModifyBulletSpeed(double amount)
         {
             BulletSpeedModifier += amount;

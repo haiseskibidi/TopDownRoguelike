@@ -18,13 +18,15 @@ namespace GunVault.GameEngine
         public string SpriteName { get; set; }
         public bool IsWalkable { get; set; }
         public bool AllowsProjectiles { get; set; }
+        public bool CanRandomlyRotate { get; set; }
 
-        public TileInfo(TileType type, string spriteName, bool isWalkable, bool allowsProjectiles)
+        public TileInfo(TileType type, string spriteName, bool isWalkable, bool allowsProjectiles, bool canRandomlyRotate)
         {
             Type = type;
             SpriteName = spriteName;
             IsWalkable = isWalkable;
             AllowsProjectiles = allowsProjectiles;
+            CanRandomlyRotate = canRandomlyRotate;
         }
     }
     
@@ -35,11 +37,11 @@ namespace GunVault.GameEngine
         
         public static readonly Dictionary<TileType, TileInfo> TileInfos = new Dictionary<TileType, TileInfo>()
         {
-            { TileType.Grass, new TileInfo(TileType.Grass, "grass1", true, true) },
-            { TileType.Dirt, new TileInfo(TileType.Dirt, "dirt1", true, true) },
-            { TileType.Water, new TileInfo(TileType.Water, "water1", false, true) },
-            { TileType.Stone, new TileInfo(TileType.Stone, "stone1", false, true) },
-            { TileType.Sand, new TileInfo(TileType.Sand, "sand1", true, true) }
+            { TileType.Grass, new TileInfo(TileType.Grass, "grass1", true, true, true) }, // проходимость, пропуск снарядов, поворот
+            { TileType.Dirt, new TileInfo(TileType.Dirt, "dirt1", true, true, true) },
+            { TileType.Water, new TileInfo(TileType.Water, "water1", false, true, false) },
+            { TileType.Stone, new TileInfo(TileType.Stone, "stone1", false, false, true) },
+            { TileType.Sand, new TileInfo(TileType.Sand, "sand1", true, true, false) }
         };
     }
 }

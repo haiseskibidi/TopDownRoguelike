@@ -78,7 +78,7 @@ namespace GunVault.GameEngine
                     TileType tileType = _tileMap[x, y];
                     TileInfo tileInfo = TileSettings.TileInfos[tileType];
                     
-                    UIElement tile = CreateTile(xPos, yPos, tileInfo.SpriteName);
+                    UIElement tile = CreateTile(xPos, yPos, tileInfo);
                     if (tile != null)
                     {
                         _gameCanvas.Children.Insert(0, tile);
@@ -112,16 +112,16 @@ namespace GunVault.GameEngine
             Console.WriteLine($"Создано {_tileColliders.Count} коллайдеров для непроходимых тайлов");
         }
 
-        private UIElement CreateTile(double x, double y, string spriteName)
+        private UIElement CreateTile(double x, double y, TileInfo tileInfo)
         {
             try
             {
-                UIElement tile = _spriteManager.CreateSpriteImage(spriteName, TileSettings.TILE_SIZE, TileSettings.TILE_SIZE);
+                UIElement tile = _spriteManager.CreateSpriteImage(tileInfo.SpriteName, TileSettings.TILE_SIZE, TileSettings.TILE_SIZE);
                 
                 Canvas.SetLeft(tile, x);
                 Canvas.SetTop(tile, y);
                 
-                if (_random.NextDouble() > 0.5)
+                if (tileInfo.CanRandomlyRotate && _random.NextDouble() > 0.5)
                 {
                     ScaleTransform flipTransform = new ScaleTransform(-1, 1);
                     tile.RenderTransform = flipTransform;
@@ -132,7 +132,7 @@ namespace GunVault.GameEngine
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка при создании тайла {spriteName}: {ex.Message}");
+                Console.WriteLine($"Ошибка при создании тайла {tileInfo.SpriteName}: {ex.Message}");
                 return null;
             }
         }

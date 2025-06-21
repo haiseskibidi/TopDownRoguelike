@@ -11,8 +11,7 @@ namespace GunVault.Models
         AssaultRifle,
         Sniper,
         MachineGun,
-        RocketLauncher,
-        Laser
+        RocketLauncher
     }
     
     public class Weapon
@@ -40,8 +39,6 @@ namespace GunVault.Models
         
         private double _cooldownTime;
         private double _currentCooldown;
-        
-        public bool IsLaser => Type == WeaponType.Laser;
         
         public Weapon(string name, WeaponType type, double damage, double fireRate, double range, 
                       double bulletSpeed, int maxAmmo, double reloadTime, double spread, int bulletsPerShot,

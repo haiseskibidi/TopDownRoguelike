@@ -14,8 +14,7 @@ namespace GunVault.Models
             WeaponType.AssaultRifle,
             WeaponType.MachineGun,
             WeaponType.Sniper,
-            WeaponType.RocketLauncher,
-            WeaponType.Laser
+            WeaponType.RocketLauncher
         };
         
         private static readonly Dictionary<WeaponType, string> BulletSpriteNames = new Dictionary<WeaponType, string>
@@ -25,8 +24,7 @@ namespace GunVault.Models
             { WeaponType.AssaultRifle, "bullet_rifle" },
             { WeaponType.MachineGun, "bullet_rifle" },
             { WeaponType.Sniper, "bullet_sniper" },
-            { WeaponType.RocketLauncher, "bullet_rocket" },
-            { WeaponType.Laser, "" } // Lasers don't have bullet sprites
+            { WeaponType.RocketLauncher, "bullet_rocket" }
         };
 
         public static WeaponType GetWeaponTypeForScore(int score)
@@ -130,21 +128,6 @@ namespace GunVault.Models
                         isExplosive: true,
                         explosionRadius: 100,
                         explosionDamageMultiplier: 0.85
-                    );
-                    
-                case WeaponType.Laser:
-                    return new Weapon(
-                        name: "Лазер",
-                        type: WeaponType.Laser,
-                        damage: 35, 
-                        fireRate: 2, 
-                        range: 800,
-                        bulletSpeed: 800,
-                        maxAmmo: 15,
-                        reloadTime: 2.0,
-                        spread: 0.02,
-                        bulletsPerShot: 1,
-                        bulletSpriteName: BulletSpriteNames[type]
                     );
                     
                 default:

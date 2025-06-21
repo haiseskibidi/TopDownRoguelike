@@ -28,8 +28,7 @@ namespace GunVault.Models
             { WeaponType.AssaultRifle, new MuzzleParams(1.0, 30, 10) },
             { WeaponType.Sniper, new MuzzleParams(1.0, 35, 5) },
             { WeaponType.MachineGun, new MuzzleParams(1.0, 28, 8) },
-            { WeaponType.RocketLauncher, new MuzzleParams(1.0, 25, 15) },
-            { WeaponType.Laser, new MuzzleParams(1.0, 30, 7) }
+            { WeaponType.RocketLauncher, new MuzzleParams(1.0, 25, 15) }
         };
         
         public static MuzzleParams GetMuzzleParams(WeaponType weaponType)

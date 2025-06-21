@@ -20,7 +20,6 @@ namespace GunVault.GameEngine
         private List<Enemy> _enemies;
         private List<Bullet> _bullets;
         private List<Explosion> _explosions;
-        private List<LaserBeam> _lasers;
         private List<BulletImpactEffect> _bulletImpactEffects;
         public LevelGenerator _levelGenerator;
         private double _gameWidth;
@@ -99,7 +98,6 @@ namespace GunVault.GameEngine
             _enemies = new List<Enemy>();
             _bullets = new List<Bullet>();
             _explosions = new List<Explosion>();
-            _lasers = new List<LaserBeam>();
             _bulletImpactEffects = new List<BulletImpactEffect>();
             _random = new Random();
             _score = 0;
@@ -271,39 +269,23 @@ namespace GunVault.GameEngine
             Point worldMousePosition = _camera.ScreenToWorld(mousePosition.X, mousePosition.Y);
             _player.UpdateWeapon(deltaTime, worldMousePosition);
             
-            if (_player.GetCurrentWeapon().IsLaser)
+            var bulletParams = _player.Shoot(worldMousePosition);
+            if (bulletParams != null)
             {
-                LaserBeam newLaser = _player.ShootLaser(worldMousePosition);
-                    if (newLaser != null)
-                    {
-                        _lasers.Add(newLaser);
-                    _worldContainer.Children.Add(newLaser.LaserLine);
-                    _worldContainer.Children.Add(newLaser.LaserDot);
-                        
-                        ProcessLaserCollisions(newLaser);
-                    }
-                }
-                else
+                foreach (var p in bulletParams)
                 {
-                    var bulletParams = _player.Shoot(worldMousePosition);
-                    if (bulletParams != null)
-                    {
-                        foreach (var p in bulletParams)
-                        {
-                            var bullet = _bulletPool.Get();
-                            bullet.Init(p.StartX, p.StartY, p.Angle, p.Speed, p.Damage, "bullet", _spriteManager, p.IsExplosive, p.ExplosionRadius, p.ExplosionDamage);
-                            _bullets.Add(bullet);
-                            
-                            // Определяем чанк и добавляем пулю в него
-                            var (chunkX, chunkY) = Chunk.WorldToChunk(p.StartX, p.StartY);
-                            var chunk = _chunkManager.GetOrCreateChunk(chunkX, chunkY);
-                            chunk.Bullets.Add(bullet);
-                        }
-                    }
+                    var bullet = _bulletPool.Get();
+                    bullet.Init(p.StartX, p.StartY, p.Angle, p.Speed, p.Damage, "bullet", _spriteManager, p.IsExplosive, p.ExplosionRadius, p.ExplosionDamage);
+                    _bullets.Add(bullet);
+                    
+                    // Определяем чанк и добавляем пулю в него
+                    var (chunkX, chunkY) = Chunk.WorldToChunk(p.StartX, p.StartY);
+                    var chunk = _chunkManager.GetOrCreateChunk(chunkX, chunkY);
+                    chunk.Bullets.Add(bullet);
                 }
+            }
             
             UpdateBullets(deltaTime);
-            UpdateLasers(deltaTime);
             UpdateExplosions(deltaTime);
             UpdateBulletImpacts(deltaTime);
             CheckCollisions();
@@ -729,6 +711,11 @@ namespace GunVault.GameEngine
 
             if (!isEnemyAlive)
             {
+                if (enemy.Type == EnemyType.Bomber)
+                {
+                    CreateExplosion(enemy.X, enemy.Y, enemy.DamageOnCollision, 70);
+                }
+                
                 _score += enemy.ScoreValue;
                 ScoreChanged?.Invoke(this, _score);
                 EnemyKilled?.Invoke(this, enemy.ExperienceValue);
@@ -765,7 +752,12 @@ namespace GunVault.GameEngine
                         bool isEnemyAlive = enemy.TakeDamage(_explosions[i].Damage);
                         if (!isEnemyAlive)
                         {
-                             _score += enemy.ScoreValue;
+                            if (enemy.Type == EnemyType.Bomber)
+                            {
+                                CreateExplosion(enemy.X, enemy.Y, enemy.DamageOnCollision, 70);
+                            }
+                            
+                            _score += enemy.ScoreValue;
                             ScoreChanged?.Invoke(this, _score);
                             EnemyKilled?.Invoke(this, enemy.ExperienceValue);
                             _worldContainer.Children.Remove(enemy.EnemyShape);
@@ -812,6 +804,12 @@ namespace GunVault.GameEngine
                 if (_player.Collider.Intersects(enemy.Collider))
                 {
                     _player.TakeDamage(enemy.DamageOnCollision);
+                    
+                    if (enemy.Type == EnemyType.Bomber)
+                    {
+                        CreateExplosion(enemy.X, enemy.Y, enemy.DamageOnCollision, 70);
+                    }
+                    
                     _worldContainer.Children.Remove(enemy.EnemyShape);
                     _worldContainer.Children.Remove(enemy.HealthBar);
                     _enemyTargets.Remove(enemy);
@@ -944,58 +942,6 @@ namespace GunVault.GameEngine
         public bool IsAreaWalkable(RectCollider playerCollider)
         {
             return _levelGenerator.IsAreaWalkable(playerCollider);
-        }
-
-        private void ProcessLaserCollisions(LaserBeam laser)
-        {
-            Dictionary<Enemy, double> hitEnemies = new Dictionary<Enemy, double>();
-            foreach (var enemy in _enemies)
-            {
-                double distance;
-                if (laser.IntersectsWithEnemy(enemy, out distance))
-                {
-                    hitEnemies.Add(enemy, distance);
-                }
-            }
-            var sortedEnemies = new List<KeyValuePair<Enemy, double>>(hitEnemies);
-            sortedEnemies.Sort((pair1, pair2) => pair1.Value.CompareTo(pair2.Value));
-            foreach (var pair in sortedEnemies)
-            {
-                Enemy enemy = pair.Key;
-                bool isEnemyAlive = enemy.TakeDamage(laser.Damage);
-                if (!isEnemyAlive)
-                {
-                    _score += enemy.ScoreValue;
-                    ScoreChanged?.Invoke(this, _score);
-                    _worldContainer.Children.Remove(enemy.EnemyShape);
-                    _worldContainer.Children.Remove(enemy.HealthBar);
-                    _enemyTargets.Remove(enemy);
-                    _enemies.Remove(enemy);
-                }
-            }
-            if (sortedEnemies.Count > 0)
-            {
-                double maxDistance = laser.MaxLength;
-                double dx = Math.Cos(laser.Angle);
-                double dy = Math.Sin(laser.Angle);
-                double newEndX = laser.StartX + dx * maxDistance;
-                double newEndY = laser.StartY + dy * maxDistance;
-                laser.SetEndPoint(newEndX, newEndY);
-            }
-        }
-
-        private void UpdateLasers(double deltaTime)
-        {
-            for (int i = _lasers.Count - 1; i >= 0; i--)
-            {
-                bool isActive = _lasers[i].Update(deltaTime);
-                if (!isActive)
-                {
-                    _worldContainer.Children.Remove(_lasers[i].LaserLine);
-                    _worldContainer.Children.Remove(_lasers[i].LaserDot);
-                    _lasers.RemoveAt(i);
-                }
-            }
         }
 
         private void UpdateBulletImpacts(double deltaTime)
