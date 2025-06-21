@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using GunVault.Models;
+using GunVault.Models.Physics;
 
 namespace GunVault.GameEngine
 {
@@ -41,6 +42,9 @@ namespace GunVault.GameEngine
 
         private Dictionary<string, RectCollider> _tileColliders;
         private List<EnemyState> _cachedEnemies;
+        public List<RectCollider> TileColliders { get; } = new List<RectCollider>();
+        public List<EnemyState> CachedEnemyStates { get; } = new List<EnemyState>();
+        public List<Bullet> Bullets { get; } = new List<Bullet>();
 
         public UIElement? DebugMarker { get; set; }
         public event EventHandler OnChunkActivated;
@@ -109,6 +113,25 @@ namespace GunVault.GameEngine
             double worldX = chunkX * CHUNK_SIZE * TileSettings.TILE_SIZE;
             double worldY = chunkY * CHUNK_SIZE * TileSettings.TILE_SIZE;
             return (worldX, worldY);
+        }
+
+        public void AddEnemyState(EnemyState enemyState)
+        {
+            CachedEnemyStates.Add(enemyState);
+        }
+
+        public void RemoveEnemy(Enemy enemy)
+        {
+            // Пока что чанки не хранят прямых ссылок на врагов,
+            // этот метод здесь для совместимости.
+            // Враги фильтруются из общего списка в GetEnemiesInVicinity.
+        }
+
+        public List<EnemyState> GetAndClearCachedStates()
+        {
+            var states = new List<EnemyState>(CachedEnemyStates);
+            CachedEnemyStates.Clear();
+            return states;
         }
     }
 } 

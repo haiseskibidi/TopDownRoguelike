@@ -41,8 +41,6 @@ namespace GunVault.Models
         private double _cooldownTime;
         private double _currentCooldown;
         
-        private double _currentAngle = 0;
-        
         public bool IsLaser => Type == WeaponType.Laser;
         
         public Weapon(string name, WeaponType type, double damage, double fireRate, double range, 

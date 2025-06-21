@@ -35,7 +35,7 @@ namespace GunVault.Models
             return WeaponProgression[weaponIndex];
         }
         
-        public static Weapon CreateWeapon(WeaponType type, object unused = null)
+        public static Weapon CreateWeapon(WeaponType type, object? unused = null)
         {
             switch (type)
             {

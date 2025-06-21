@@ -8,6 +8,7 @@ using GunVault.Models;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using System.Linq;
 
 namespace GunVault.GameEngine
 {
@@ -25,9 +26,12 @@ namespace GunVault.GameEngine
         private Task _chunkLoadTask;
         private ConcurrentDictionary<string, Task> _loadingChunks;
         private int _preloadDistance = 2;
+        private readonly List<Enemy> _enemies;
+        private DateTime _lastPlayerMoveTime;
+        private const double PREDICTION_TIME = 0.5;
         public event EventHandler<ChunkEnemyRestoreEventArgs> EnemiesReadyToRestore;
         
-        public ChunkManager(Canvas worldContainer)
+        public ChunkManager(Canvas worldContainer, List<Enemy> enemies)
         {
             _chunks = new Dictionary<string, Chunk>();
             _activeChunks = new List<Chunk>();
@@ -36,6 +40,8 @@ namespace GunVault.GameEngine
             _chunkLoadQueue = new ConcurrentQueue<ChunkLoadRequest>();
             _loadingChunks = new ConcurrentDictionary<string, Task>();
             _loadTaskCancellation = new CancellationTokenSource();
+            _enemies = enemies;
+            _lastPlayerMoveTime = DateTime.Now;
             
             if (_useAsyncLoading)
             {
@@ -616,6 +622,66 @@ namespace GunVault.GameEngine
                 newChunk.CacheEnemy(enemyState);
                 Console.WriteLine($"Создан новый чанк {enemyState.ChunkX}:{enemyState.ChunkY} для кэширования врага типа {enemyState.Type}");
             }
+        }
+
+        public List<Enemy> GetEnemiesInVicinity(Chunk centerChunk)
+        {
+            List<Enemy> enemies = new List<Enemy>();
+            for (int y = -1; y <= 1; y++)
+            {
+                for (int x = -1; x <= 1; x++)
+                {
+                    var chunk = GetOrCreateChunk(centerChunk.ChunkX + x, centerChunk.ChunkY + y);
+                    if (chunk != null)
+                    {
+                        // Важно: мы берем врагов из основного списка GameManager,
+                        // но фильтруем их по принадлежности к чанку.
+                        // Это более надежно, чем если бы чанк хранил прямые ссылки на врагов.
+                        var chunkEnemies = _enemies.Where(e => 
+                            Chunk.WorldToChunk(e.X, e.Y) == (chunk.ChunkX, chunk.ChunkY)
+                        ).ToList();
+                        enemies.AddRange(chunkEnemies);
+                    }
+                }
+            }
+            return enemies;
+        }
+
+        public List<Bullet> GetBulletsInVicinity(Chunk centerChunk)
+        {
+            List<Bullet> bullets = new List<Bullet>();
+            for (int y = -1; y <= 1; y++)
+            {
+                for (int x = -1; x <= 1; x++)
+                {
+                    var chunk = GetOrCreateChunk(centerChunk.ChunkX + x, centerChunk.ChunkY + y);
+                    if (chunk != null)
+                    {
+                        bullets.AddRange(chunk.Bullets);
+                    }
+                }
+            }
+            return bullets;
+        }
+        
+        public Dictionary<string, RectCollider> GetTileCollidersInVicinity(Chunk centerChunk)
+        {
+            Dictionary<string, RectCollider> colliders = new Dictionary<string, RectCollider>();
+            for (int y = -1; y <= 1; y++)
+            {
+                for (int x = -1; x <= 1; x++)
+                {
+                    var chunk = GetOrCreateChunk(centerChunk.ChunkX + x, centerChunk.ChunkY + y);
+                    if (chunk != null)
+                    {
+                        foreach (var collider in chunk.GetTileColliders())
+                        {
+                            colliders[collider.Key] = collider.Value;
+                        }
+                    }
+                }
+            }
+            return colliders;
         }
     }
     

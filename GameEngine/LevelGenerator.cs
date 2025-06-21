@@ -263,7 +263,6 @@ namespace GunVault.GameEngine
             
             if (tileX < 0 || tileX >= _tileMap.GetLength(0) || tileY < 0 || tileY >= _tileMap.GetLength(1))
             {
-                return false;
                 return false; // За пределами карты считается непроходимым
             }
             
@@ -331,7 +330,7 @@ namespace GunVault.GameEngine
                 for (int x1 = minTileX; x1 <= maxTileX; x1++)
                 {
                     string key = $"{x1}:{y1}";
-                    if (_tileColliders.TryGetValue(key, out RectCollider collider))
+                    if (_tileColliders.TryGetValue(key, out RectCollider? collider))
                     {
                         nearbyColliders.Add(key, collider);
                     }

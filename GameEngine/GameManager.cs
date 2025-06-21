@@ -30,7 +30,6 @@ namespace GunVault.GameEngine
         private double _enemySpawnTimer;
         private double _enemySpawnRate = 2.0;
         private double _healthRegenTimer = 1.0; // Regenerate health every second
-        private double _enemyUpdateTimer = 0.0; // Таймер для оптимизации обновления врагов
         private const double ENEMY_UPDATE_INTERVAL = 0.3; 
         private WeaponType _lastWeaponType;
         private const double INITIAL_SPAWN_RATE = 2.0;
@@ -90,7 +89,7 @@ namespace GunVault.GameEngine
 
         private ObjectPool<Bullet> _bulletPool;
 
-        public GameManager(Canvas gameCanvas, Player player, double gameWidth, double gameHeight, SpriteManager spriteManager = null)
+        public GameManager(Canvas gameCanvas, Player player, double gameWidth, double gameHeight, SpriteManager? spriteManager = null)
         {
             _gameCanvas = gameCanvas;
             _player = player;
@@ -146,7 +145,7 @@ namespace GunVault.GameEngine
             
             _player.AddWeaponToCanvas(_worldContainer);
             
-            _chunkManager = new ChunkManager(_worldContainer);
+            _chunkManager = new ChunkManager(_worldContainer, _enemies);
             
             _levelGenerator = new LevelGenerator(_worldContainer, _worldWidth, _worldHeight, _spriteManager);
             _levelGenerator.GenerateLevel();
@@ -294,6 +293,11 @@ namespace GunVault.GameEngine
                             var bullet = _bulletPool.Get();
                             bullet.Init(p.StartX, p.StartY, p.Angle, p.Speed, p.Damage, "bullet", _spriteManager, p.IsExplosive, p.ExplosionRadius, p.ExplosionDamage);
                             _bullets.Add(bullet);
+                            
+                            // Определяем чанк и добавляем пулю в него
+                            var (chunkX, chunkY) = Chunk.WorldToChunk(p.StartX, p.StartY);
+                            var chunk = _chunkManager.GetOrCreateChunk(chunkX, chunkY);
+                            chunk.Bullets.Add(bullet);
                         }
                     }
                 }
@@ -618,16 +622,39 @@ namespace GunVault.GameEngine
                 var bullet = _bullets[i];
                 if (!bullet.IsActive)
                 {
+                    // Пуля уже неактивна, удаляем ее отовсюду
+                    var (chunkX, chunkY) = Chunk.WorldToChunk(bullet.X, bullet.Y);
+                    _chunkManager.GetOrCreateChunk(chunkX, chunkY)?.Bullets.Remove(bullet);
                     _bullets.RemoveAt(i);
                     _bulletPool.Return(bullet);
                     continue;
                 }
 
-                bool isActive = bullet.Move(deltaTime);
-                if (!isActive)
+                // Запоминаем старые координаты чанка
+                var (oldChunkX, oldChunkY) = Chunk.WorldToChunk(bullet.X, bullet.Y);
+
+                bool inBounds = bullet.Move(deltaTime);
+                if (!inBounds)
                 {
+                    // Пуля вышла за пределы мира
+                    bullet.Deactivate();
+                    _chunkManager.GetOrCreateChunk(oldChunkX, oldChunkY)?.Bullets.Remove(bullet);
                     _bullets.RemoveAt(i);
                     _bulletPool.Return(bullet);
+                    continue;
+                }
+                
+                // Получаем новые координаты чанка
+                var (newChunkX, newChunkY) = Chunk.WorldToChunk(bullet.X, bullet.Y);
+
+                // Если пуля сменила чанк, обновляем ее "прописку"
+                if (oldChunkX != newChunkX || oldChunkY != newChunkY)
+                {
+                    var oldChunk = _chunkManager.GetOrCreateChunk(oldChunkX, oldChunkY);
+                    oldChunk?.Bullets.Remove(bullet);
+
+                    var newChunk = _chunkManager.GetOrCreateChunk(newChunkX, newChunkY);
+                    newChunk?.Bullets.Add(bullet);
                 }
             }
         }
@@ -639,103 +666,159 @@ namespace GunVault.GameEngine
 
         private void CheckCollisions()
         {
-            // Коллизии пуль с врагами и тайлами
-            for (int i = _bullets.Count - 1; i >= 0; i--)
+            // Получаем все активные чанки
+            List<Chunk> activeChunks = _chunkManager.GetActiveChunks();
+
+            foreach (var chunk in activeChunks)
             {
-                Bullet bullet = _bullets[i];
-                if (!bullet.IsActive) continue;
+                // Собираем врагов и пули из текущего и соседних чанков
+                List<Enemy> enemiesInVicinity = _chunkManager.GetEnemiesInVicinity(chunk);
+                List<Bullet> bulletsInVicinity = _chunkManager.GetBulletsInVicinity(chunk);
 
-                bool bulletRemoved = false;
-
-                // Проверка на столкновение с тайлами
-                if (_levelGenerator != null)
+                // Коллизии пуль с врагами
+                foreach (var bullet in bulletsInVicinity)
                 {
-                    var nearbyTileColliders = _levelGenerator.GetNearbyTileColliders(bullet.X, bullet.Y);
+                    if (!bullet.IsActive) continue;
+                    
+                    bool bulletHitSomething = false;
+
+                    // Столкновения с врагами
+                    foreach (var enemy in enemiesInVicinity)
+                    {
+                        if (bullet.Collides(enemy))
+                        {
+                            HandleBulletEnemyCollision(bullet, enemy);
+                            bulletHitSomething = true;
+                            break; 
+                        }
+                    }
+
+                    if (bulletHitSomething) continue;
+
+                    // Столкновения с тайлами
+                    var nearbyTileColliders = _chunkManager.GetTileCollidersInVicinity(chunk);
                     foreach (var tileCollider in nearbyTileColliders)
                     {
                         TileType tileType = _levelGenerator.GetTileTypeAt(tileCollider.Key);
                         if (bullet.CollidesWithTile(tileCollider.Value, tileType))
                         {
-                            bullet.Deactivate();
-                            bulletRemoved = true;
-                            
-                            // Создаем взрыв, если пуля взрывная
-                            if (bullet.IsExplosive && bullet.ExplosionRadius > 0)
-                            {
-                                CreateExplosion(bullet.X, bullet.Y, bullet.ExplosionDamage, bullet.ExplosionRadius);
-                            }
-                            
+                            HandleBulletTileCollision(bullet);
+                            bulletHitSomething = true;
                             break;
                         }
                     }
                 }
+            }
+            
+            // Коллизии взрывов с врагами (оставляем пока как есть, т.к. взрывы редкие)
+            ProcessExplosionCollisions();
+            
+            // Коллизии игрока с врагами
+            ProcessPlayerEnemyCollisions();
+        }
+
+        private void HandleBulletEnemyCollision(Bullet bullet, Enemy enemy)
+        {
+            bool isEnemyAlive = enemy.TakeDamage(bullet.Damage);
+            bullet.Deactivate();
+
+            if (bullet.IsExplosive && bullet.ExplosionRadius > 0)
+            {
+                CreateExplosion(bullet.X, bullet.Y, bullet.ExplosionDamage, bullet.ExplosionRadius);
+            }
+
+            if (!isEnemyAlive)
+            {
+                _score += enemy.ScoreValue;
+                ScoreChanged?.Invoke(this, _score);
+                EnemyKilled?.Invoke(this, enemy.ExperienceValue);
+                _worldContainer.Children.Remove(enemy.EnemyShape);
+                _worldContainer.Children.Remove(enemy.HealthBar);
+                _enemyTargets.Remove(enemy);
+                _enemies.Remove(enemy);
                 
-                if (bulletRemoved) continue;
-                
-                // Проверка на столкновение с врагами
-                for (int j = _enemies.Count - 1; j >= 0; j--)
+                // Также удаляем врага из его чанка
+                var (chunkX, chunkY) = Chunk.WorldToChunk(enemy.X, enemy.Y);
+                _chunkManager.GetOrCreateChunk(chunkX, chunkY)?.RemoveEnemy(enemy);
+            }
+        }
+        
+        private void HandleBulletTileCollision(Bullet bullet)
+        {
+            bullet.Deactivate();
+            if (bullet.IsExplosive && bullet.ExplosionRadius > 0)
+            {
+                CreateExplosion(bullet.X, bullet.Y, bullet.ExplosionDamage, bullet.ExplosionRadius);
+            }
+        }
+
+        private void ProcessExplosionCollisions()
+        {
+            for (int i = _explosions.Count - 1; i >= 0; i--)
+            {
+                // Для взрывов используем упрощенный поиск врагов в радиусе
+                var enemiesInRadius = GetEnemiesInRadius(_explosions[i].X, _explosions[i].Y, _explosions[i].CurrentRadius);
+                foreach (var enemy in enemiesInRadius)
                 {
-                    Enemy enemy = _enemies[j];
-                    if (bullet.Collides(enemy))
+                    if (_explosions[i].AffectsEnemy(enemy))
                     {
-                        bool isEnemyAlive = enemy.TakeDamage(bullet.Damage);
-                        bullet.Deactivate();
-                        bulletRemoved = true;
-
-                        // Создаем взрыв, если пуля взрывная
-                        if (bullet.IsExplosive && bullet.ExplosionRadius > 0)
-                        {
-                            CreateExplosion(bullet.X, bullet.Y, bullet.ExplosionDamage, bullet.ExplosionRadius);
-                        }
-
+                        bool isEnemyAlive = enemy.TakeDamage(_explosions[i].Damage);
                         if (!isEnemyAlive)
                         {
-                            _score += enemy.ScoreValue;
+                             _score += enemy.ScoreValue;
                             ScoreChanged?.Invoke(this, _score);
                             EnemyKilled?.Invoke(this, enemy.ExperienceValue);
                             _worldContainer.Children.Remove(enemy.EnemyShape);
                             _worldContainer.Children.Remove(enemy.HealthBar);
                             _enemyTargets.Remove(enemy);
-                            _enemies.RemoveAt(j);
+                            _enemies.Remove(enemy);
+                            
+                            var (chunkX, chunkY) = Chunk.WorldToChunk(enemy.X, enemy.Y);
+                            _chunkManager.GetOrCreateChunk(chunkX, chunkY)?.RemoveEnemy(enemy);
                         }
-                        break;
                     }
                 }
             }
+        }
+        
+        private List<Enemy> GetEnemiesInRadius(double centerX, double centerY, double radius)
+        {
+            List<Enemy> foundEnemies = new List<Enemy>();
+            var (chunkX, chunkY) = Chunk.WorldToChunk(centerX, centerY);
+            var chunk = _chunkManager.GetOrCreateChunk(chunkX, chunkY);
+            
+            var enemiesToCheck = _chunkManager.GetEnemiesInVicinity(chunk);
 
-            // Коллизии взрывов с врагами
-            for (int i = _explosions.Count - 1; i >= 0; i--)
+            foreach (var enemy in enemiesToCheck)
             {
-                for (int j = _enemies.Count - 1; j >= 0; j--)
+                double distanceSq = (enemy.X - centerX) * (enemy.X - centerX) + (enemy.Y - centerY) * (enemy.Y - centerY);
+                if (distanceSq <= radius * radius)
                 {
-                    if (_explosions[i].AffectsEnemy(_enemies[j]))
-                    {
-                        bool isEnemyAlive = _enemies[j].TakeDamage(_explosions[i].Damage);
-                        if (!isEnemyAlive)
-                        {
-                            _score += _enemies[j].ScoreValue;
-                            ScoreChanged?.Invoke(this, _score);
-                            EnemyKilled?.Invoke(this, _enemies[j].ExperienceValue);
-                            _worldContainer.Children.Remove(_enemies[j].EnemyShape);
-                            _worldContainer.Children.Remove(_enemies[j].HealthBar);
-                            _enemyTargets.Remove(_enemies[j]);
-                            _enemies.RemoveAt(j);
-                        }
-                    }
+                    foundEnemies.Add(enemy);
                 }
             }
+            return foundEnemies;
+        }
 
-            // Коллизии игрока с врагами
-            for (int i = _enemies.Count - 1; i >= 0; i--)
+        private void ProcessPlayerEnemyCollisions()
+        {
+            var (playerChunkX, playerChunkY) = Chunk.WorldToChunk(_player.X, _player.Y);
+            var playerChunk = _chunkManager.GetOrCreateChunk(playerChunkX, playerChunkY);
+            var enemiesToCheck = _chunkManager.GetEnemiesInVicinity(playerChunk);
+            
+            for (int i = enemiesToCheck.Count - 1; i >= 0; i--)
             {
-                Enemy enemy = _enemies[i];
+                Enemy enemy = enemiesToCheck[i];
                 if (_player.Collider.Intersects(enemy.Collider))
                 {
                     _player.TakeDamage(enemy.DamageOnCollision);
                     _worldContainer.Children.Remove(enemy.EnemyShape);
                     _worldContainer.Children.Remove(enemy.HealthBar);
                     _enemyTargets.Remove(enemy);
-                    _enemies.RemoveAt(i);
+                    _enemies.Remove(enemy);
+                    // Удаляем врага из его чанка
+                    var (chunkX, chunkY) = Chunk.WorldToChunk(enemy.X, enemy.Y);
+                    _chunkManager.GetOrCreateChunk(chunkX, chunkY)?.RemoveEnemy(enemy);
                 }
             }
         }

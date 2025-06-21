@@ -67,7 +67,7 @@ namespace GunVault.Models
             { "player_assaultrifle", new Tuple<double, double>(60.0, 32.0) },
         };
         
-        public Player(double startX, double startY, SpriteManager spriteManager = null)
+        public Player(double startX, double startY, SpriteManager? spriteManager = null)
         {
             X = startX;
             Y = startY;
