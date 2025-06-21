@@ -21,6 +21,12 @@ namespace GunVault.Models
         private const double BASE_SPRITE_HEIGHT = 32.0;
         private const double TARGET_SPRITE_HEIGHT = PLAYER_RADIUS * 2.5;
         
+        public struct BulletParams
+        {
+            public double StartX, StartY, Angle, Speed, Damage, ExplosionRadius, ExplosionDamage;
+            public bool IsExplosive;
+        }
+        
         public double X { get; private set; }
         public double Y { get; private set; }
         public double Health { get; private set; }
@@ -442,12 +448,12 @@ namespace GunVault.Models
             }
         }
         
-        public List<Bullet> Shoot(Point targetPoint)
+        public List<BulletParams> Shoot(Point targetPoint)
         {
             if (CurrentWeapon.CanShoot())
             {
                 CurrentWeapon.Shoot();
-                var bullets = new List<Bullet>();
+                var bulletParamsList = new List<BulletParams>();
 
                 double angle = Math.Atan2(targetPoint.Y - Y, targetPoint.X - X);
 
@@ -463,27 +469,29 @@ namespace GunVault.Models
                 {
                     double spreadAngle = angle + (new Random().NextDouble() - 0.5) * CurrentWeapon.Spread;
 
-                    var bullet = new Bullet(
-                        muzzleX,
-                        muzzleY,
-                        spreadAngle,
-                        CurrentWeapon.BulletSpeed * BulletSpeedModifier,
-                        CurrentWeapon.Damage * BulletDamageModifier,
-                        CurrentWeapon.BulletSpriteName,
-                        spriteManager
-                    );
+                    var bulletParams = new BulletParams
+                    {
+                        StartX = muzzleX,
+                        StartY = muzzleY,
+                        Angle = spreadAngle,
+                        Speed = CurrentWeapon.BulletSpeed * BulletSpeedModifier,
+                        Damage = CurrentWeapon.Damage * BulletDamageModifier,
+                        IsExplosive = false,
+                        ExplosionRadius = 0,
+                        ExplosionDamage = 0
+                    };
                     
                     // Устанавливаем свойства взрывной пули для ракетницы
                     if (CurrentWeapon.Type == WeaponType.RocketLauncher)
                     {
-                        bullet.IsExplosive = true;
-                        bullet.ExplosionRadius = 100;
-                        bullet.ExplosionDamage = CurrentWeapon.Damage * 0.85 * BulletDamageModifier;
+                        bulletParams.IsExplosive = true;
+                        bulletParams.ExplosionRadius = 100;
+                        bulletParams.ExplosionDamage = CurrentWeapon.Damage * 0.85 * BulletDamageModifier;
                     }
                     
-                    bullets.Add(bullet);
+                    bulletParamsList.Add(bulletParams);
                 }
-                return bullets;
+                return bulletParamsList;
             }
             return null;
         }
@@ -607,16 +615,13 @@ namespace GunVault.Models
         // Метод для добавления визуализации коллайдера на канвас
         public void AddColliderVisualToCanvas(Canvas canvas)
         {
-            // Оставляем метод пустым, чтобы полностью отключить визуализацию коллайдера
-            // Даже не добавляем коллайдер на канвас
-            // Это необходимо для работы с существующими вызовами этого метода из других частей кода
+
         }
         
         // Метод для скрытия/отображения визуализации коллайдера
         public void ToggleColliderVisibility(bool isVisible)
         {
-            // Оставляем метод пустым, поскольку коллайдеры больше не отображаются
-            // Это сохранит совместимость с существующими вызовами
+
         }
 
         // Вспомогательный метод для создания формы по умолчанию
@@ -637,7 +642,7 @@ namespace GunVault.Models
         public void UpgradeBulletSpeed() { BulletSpeedModifier += 0.1; BulletSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, BulletSpeedUpgradeLevel + 1); }
         public void UpgradeBulletDamage() { BulletDamageModifier += 0.1; BulletDamageUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, BulletDamageUpgradeLevel + 1); }
         public void UpgradeReloadSpeed() { ReloadSpeedModifier += 0.1; ReloadSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, ReloadSpeedUpgradeLevel + 1); }
-        public void UpgradeMovementSpeed() { MovementSpeed += 0.5; MovementSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, MovementSpeedUpgradeLevel + 1); }
+        public void UpgradeMovementSpeed() { MovementSpeed += 0.12; MovementSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, MovementSpeedUpgradeLevel + 1); }
 
         private SpriteManager GetSpriteManager()
         {

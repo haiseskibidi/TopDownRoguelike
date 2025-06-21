@@ -1,15 +1,15 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Q1\\Documents\\gunvault\\GunVault.csproj": {}
+    "C:\\Users\\Q1\\Documents\\gunvault\\gunvault.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Q1\\Documents\\gunvault\\GunVault.csproj": {
+    "C:\\Users\\Q1\\Documents\\gunvault\\gunvault.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Q1\\Documents\\gunvault\\GunVault.csproj",
-        "projectName": "GunVault",
-        "projectPath": "C:\\Users\\Q1\\Documents\\gunvault\\GunVault.csproj",
+        "projectUniqueName": "C:\\Users\\Q1\\Documents\\gunvault\\gunvault.csproj",
+        "projectName": "gunvault",
+        "projectPath": "C:\\Users\\Q1\\Documents\\gunvault\\gunvault.csproj",
         "packagesPath": "C:\\Users\\Q1\\.nuget\\packages\\",
         "outputPath": "C:\\Users\\Q1\\Documents\\gunvault\\obj\\",
         "projectStyle": "PackageReference",

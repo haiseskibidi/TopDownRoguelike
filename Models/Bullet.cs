@@ -31,6 +31,8 @@ namespace GunVault.Models
         public double ExplosionRadius { get; set; }
         public double ExplosionDamage { get; set; }
         
+        public bool IsActive { get; private set; }
+        
         public Bullet(double startX, double startY, double angle, double speed, double damage, string spriteName, SpriteManager spriteManager)
         {
             X = startX;
@@ -46,6 +48,7 @@ namespace GunVault.Models
             IsExplosive = false;
             ExplosionRadius = 0;
             ExplosionDamage = 0;
+            IsActive = true;
             
             if (spriteManager != null && !string.IsNullOrEmpty(spriteName))
             {
@@ -74,6 +77,8 @@ namespace GunVault.Models
         
         public bool Move(double deltaTime)
         {
+            if (!IsActive) return false;
+
             _prevX = X;
             _prevY = Y;
             
@@ -89,6 +94,8 @@ namespace GunVault.Models
         
         public bool Collides(Enemy enemy)
         {
+            if (!IsActive) return false;
+
             return CollisionHelper.CheckBulletEnemyCollision(
                 X, Y, 
                 _prevX, _prevY, 
@@ -99,6 +106,8 @@ namespace GunVault.Models
         
         public bool CollidesWithTile(RectCollider tileCollider, TileType tileType)
         {
+            if (!IsActive) return false;
+
             if (tileType == TileType.Water)
                 return false;
             
@@ -113,6 +122,37 @@ namespace GunVault.Models
             }
             
             return false;
+        }
+
+        public void Init(double startX, double startY, double angle, double speed, double damage, string spriteName, SpriteManager spriteManager, bool isExplosive, double explosionRadius, double explosionDamage)
+        {
+            X = startX;
+            Y = startY;
+            _prevX = startX;
+            _prevY = startY;
+            _angle = angle;
+            Speed = speed;
+            Damage = damage;
+            IsExplosive = isExplosive;
+            ExplosionRadius = explosionRadius;
+            ExplosionDamage = explosionDamage;
+            CollidedWithTileType = null;
+
+            // Here we assume the BulletShape (UIElement) is already created and just needs to be updated.
+            UpdatePosition();
+            Activate();
+        }
+
+        public void Activate()
+        {
+            IsActive = true;
+            BulletShape.Visibility = Visibility.Visible;
+        }
+
+        public void Deactivate()
+        {
+            IsActive = false;
+            BulletShape.Visibility = Visibility.Collapsed;
         }
     }
 } 

@@ -10,12 +10,12 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("gunvault")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("GunVault")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
 [assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+631bbf068ab7e656cb43a6fce2d05abc299a824a")]
-[assembly: System.Reflection.AssemblyProductAttribute("gunvault")]
-[assembly: System.Reflection.AssemblyTitleAttribute("gunvault")]
+[assembly: System.Reflection.AssemblyProductAttribute("GunVault")]
+[assembly: System.Reflection.AssemblyTitleAttribute("GunVault")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 [assembly: System.Runtime.Versioning.TargetPlatformAttribute("Windows7.0")]
 [assembly: System.Runtime.Versioning.SupportedOSPlatformAttribute("Windows7.0")]

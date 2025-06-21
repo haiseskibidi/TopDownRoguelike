@@ -88,6 +88,8 @@ namespace GunVault.GameEngine
         public event EventHandler<int> ExperienceAdded; // Новое событие для опыта
         public event EventHandler<string> BoostActivated;
 
+        private ObjectPool<Bullet> _bulletPool;
+
         public GameManager(Canvas gameCanvas, Player player, double gameWidth, double gameHeight, SpriteManager spriteManager = null)
         {
             _gameCanvas = gameCanvas;
@@ -107,6 +109,17 @@ namespace GunVault.GameEngine
             _lastWeaponType = _player.GetWeaponType();
             _enemyTargets = new Dictionary<Enemy, Point>(); // Инициализация
             
+            _bulletPool = new ObjectPool<Bullet>(
+                factory: () => {
+                    var bullet = new Bullet(0, 0, 0, 0, 0, "bullet", _spriteManager);
+                    _worldContainer.Children.Add(bullet.BulletShape);
+                    bullet.Deactivate();
+                    return bullet;
+                },
+                onGet: bullet => bullet.Activate(),
+                onReturn: bullet => bullet.Deactivate()
+            );
+
             _enemyUpdateQueue = new ConcurrentQueue<Enemy>();
             _enemyProcessingCancellation = new CancellationTokenSource();
             
@@ -273,16 +286,17 @@ namespace GunVault.GameEngine
                 }
                 else
                 {
-                List<Bullet> newBullets = _player.Shoot(worldMousePosition);
-                    if (newBullets != null && newBullets.Count > 0)
+                    var bulletParams = _player.Shoot(worldMousePosition);
+                    if (bulletParams != null)
                     {
-                        foreach (Bullet bullet in newBullets)
+                        foreach (var p in bulletParams)
                         {
+                            var bullet = _bulletPool.Get();
+                            bullet.Init(p.StartX, p.StartY, p.Angle, p.Speed, p.Damage, "bullet", _spriteManager, p.IsExplosive, p.ExplosionRadius, p.ExplosionDamage);
                             _bullets.Add(bullet);
-                        _worldContainer.Children.Add(bullet.BulletShape);
+                        }
                     }
                 }
-            }
             
             UpdateBullets(deltaTime);
             UpdateLasers(deltaTime);
@@ -601,11 +615,19 @@ namespace GunVault.GameEngine
         {
             for (int i = _bullets.Count - 1; i >= 0; i--)
             {
-                bool isActive = _bullets[i].Move(deltaTime);
+                var bullet = _bullets[i];
+                if (!bullet.IsActive)
+                {
+                    _bullets.RemoveAt(i);
+                    _bulletPool.Return(bullet);
+                    continue;
+                }
+
+                bool isActive = bullet.Move(deltaTime);
                 if (!isActive)
                 {
-                    _worldContainer.Children.Remove(_bullets[i].BulletShape);
                     _bullets.RemoveAt(i);
+                    _bulletPool.Return(bullet);
                 }
             }
         }
@@ -621,6 +643,8 @@ namespace GunVault.GameEngine
             for (int i = _bullets.Count - 1; i >= 0; i--)
             {
                 Bullet bullet = _bullets[i];
+                if (!bullet.IsActive) continue;
+
                 bool bulletRemoved = false;
 
                 // Проверка на столкновение с тайлами
@@ -632,8 +656,7 @@ namespace GunVault.GameEngine
                         TileType tileType = _levelGenerator.GetTileTypeAt(tileCollider.Key);
                         if (bullet.CollidesWithTile(tileCollider.Value, tileType))
                         {
-                            _worldContainer.Children.Remove(bullet.BulletShape);
-                            _bullets.RemoveAt(i);
+                            bullet.Deactivate();
                             bulletRemoved = true;
                             
                             // Создаем взрыв, если пуля взрывная
@@ -656,8 +679,7 @@ namespace GunVault.GameEngine
                     if (bullet.Collides(enemy))
                     {
                         bool isEnemyAlive = enemy.TakeDamage(bullet.Damage);
-                        _worldContainer.Children.Remove(bullet.BulletShape);
-                        _bullets.RemoveAt(i);
+                        bullet.Deactivate();
                         bulletRemoved = true;
 
                         // Создаем взрыв, если пуля взрывная
