@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Collections.ObjectModel;
 
 namespace GunVault.GameEngine
 {
@@ -30,7 +31,17 @@ namespace GunVault.GameEngine
         private DateTime _lastPlayerMoveTime;
         private const double PREDICTION_TIME = 0.5;
         public event EventHandler<ChunkEnemyRestoreEventArgs> EnemiesReadyToRestore;
-        
+        private readonly CancellationTokenSource _cancellationTokenSource;
+
+        public event Action<Chunk> ChunkGenerated;
+
+        public Chunk? GetChunk(int chunkX, int chunkY)
+        {
+            string key = GetChunkKey(chunkX, chunkY);
+            _chunks.TryGetValue(key, out var chunk);
+            return chunk;
+        }
+
         public ChunkManager(Canvas worldContainer, List<Enemy> enemies)
         {
             _chunks = new Dictionary<string, Chunk>();
@@ -42,6 +53,7 @@ namespace GunVault.GameEngine
             _loadTaskCancellation = new CancellationTokenSource();
             _enemies = enemies;
             _lastPlayerMoveTime = DateTime.Now;
+            _cancellationTokenSource = new CancellationTokenSource();
             
             if (_useAsyncLoading)
             {

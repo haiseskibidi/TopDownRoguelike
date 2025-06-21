@@ -346,7 +346,7 @@ namespace GunVault.GameEngine
             WeaponType currentType = _player.GetWeaponType();
             WeaponType expectedType = WeaponFactory.GetWeaponTypeForScore(_score);
             
-            if (expectedType != currentType)
+            if (expectedType != _lastWeaponType)
             {
                 Weapon newWeapon = WeaponFactory.CreateWeapon(expectedType);
                 _player.ChangeWeapon(newWeapon, _worldContainer);
@@ -1351,9 +1351,6 @@ namespace GunVault.GameEngine
                 {
                     chest.Open();
                     string treasureDescription = chest.Collect();
-
-                    // Сначала показываем общее уведомление о находке
-                    TreasureFound?.Invoke(this, treasureDescription);
 
                     // Затем применяем эффект и показываем конкретное уведомление
                     ApplyChestEffect(chest);

@@ -172,6 +172,27 @@
         <!-- Игровое поле -->
         <Canvas x:Name="GameCanvas" Grid.Row="1" Background="#222222" Focusable="True" Panel.ZIndex="0"/>
         
+        <!-- Универсальное уведомление -->
+        <Border x:Name="NotificationBorder"
+                Grid.Row="1"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Margin="0,20,0,0"
+                Background="#333355"
+                BorderBrush="#5555AA"
+                BorderThickness="2"
+                CornerRadius="10"
+                Padding="15,10"
+                Visibility="Collapsed"
+                Panel.ZIndex="1500"
+                Effect="{StaticResource GlowEffect}">
+            <TextBlock x:Name="NotificationText"
+                       Text="Новое уведомление!"
+                       Foreground="White"
+                       FontSize="16"
+                       TextWrapping="Wrap"/>
+        </Border>
+        
         <!-- Экран загрузки -->
         <Grid x:Name="LoadingScreen" Grid.Row="1" Background="#222222" Visibility="Collapsed" Panel.ZIndex="2000">
             <StackPanel VerticalAlignment="Center">
@@ -204,10 +225,10 @@
                     <Grid>
                         <TextBlock Text="УЛУЧШЕНИЯ" Foreground="#FFFFFF" FontSize="18" FontWeight="Bold" 
                                  HorizontalAlignment="Center" Margin="8,8,8,8">
-                            <TextBlock.Effect>
+                        <TextBlock.Effect>
                                 <DropShadowEffect Color="#8888FF" ShadowDepth="1" BlurRadius="4" Opacity="0.8"/>
-                            </TextBlock.Effect>
-                        </TextBlock>
+                        </TextBlock.Effect>
+                    </TextBlock>
                         
                         <Border BorderBrush="#8888FF" BorderThickness="0,0,0,2" Margin="30,28,30,0" 
                               VerticalAlignment="Bottom"/>
@@ -521,21 +542,14 @@
             </Grid>
         </Border>
         
-        <!-- Окно смерти игрока -->
-        <Border x:Name="DeathNotification" Grid.Row="1" Visibility="Collapsed" 
-                HorizontalAlignment="Center" VerticalAlignment="Center" 
-                Margin="0,0,0,0" Panel.ZIndex="1000"
-                Background="#222233" BorderThickness="0"
-                CornerRadius="12" Effect="{StaticResource GlowEffect}">
-            <Grid Margin="12">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                
+        <!-- Уведомление о смерти игрока -->
+        <Border x:Name="DeathNotification" Grid.Row="1" Visibility="Collapsed" Panel.ZIndex="1100"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="#111122" BorderThickness="2" BorderBrush="#FF4444" CornerRadius="15"
+                Effect="{StaticResource GlowEffect}">
+            <StackPanel Margin="30">
                 <!-- Заголовок и украшение -->
-                <Border Grid.Row="0" Background="#AA4444" CornerRadius="8" Margin="0,0,0,12">
+                <Border Background="#AA4444" CornerRadius="8" Margin="0,0,0,12">
                     <Grid>
                         <TextBlock Text="ПОРАЖЕНИЕ" Foreground="#FFFFFF" FontSize="18" FontWeight="Bold" 
                                  HorizontalAlignment="Center" Margin="8,8,8,8">
@@ -550,7 +564,7 @@
                 </Border>
                 
                 <!-- Статистика игрока -->
-                <Border Grid.Row="1" Background="#333355" CornerRadius="8" Margin="0,0,0,12" Padding="12">
+                <Border Background="#333355" CornerRadius="8" Margin="0,0,0,12" Padding="12">
                     <StackPanel>
                         <TextBlock Text="СТАТИСТИКА" Foreground="#AAAAFF" FontSize="14" FontWeight="SemiBold" 
                                  HorizontalAlignment="Center" Margin="0,0,0,8"/>
@@ -573,181 +587,39 @@
                 </Border>
                 
                 <!-- Кнопка возрождения -->
-                <Button Grid.Row="2" Content="ВОЗРОДИТЬСЯ" Foreground="White" FontSize="14" FontWeight="Bold"
+                <Button Content="ВОЗРОДИТЬСЯ" Foreground="White" FontSize="14" FontWeight="Bold"
                         Background="#AA4444" BorderThickness="0" Padding="12,8" Margin="0,8,0,0"
                         Click="RespawnButton_Click" Cursor="Hand">
                     <Button.Template>
-                        <ControlTemplate TargetType="Button">
+                                        <ControlTemplate TargetType="Button">
                             <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
                                     <Setter Property="Background" Value="#CC5555"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
                                     <Setter Property="Background" Value="#DD6666"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
                     </Button.Template>
                     <Button.Effect>
                         <DropShadowEffect Color="#FF5555" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
                     </Button.Effect>
-                </Button>
-            </Grid>
+                    </Button>
+            </StackPanel>
         </Border>
         
-        <!-- Уведомление о новом оружии -->
-        <Border x:Name="WeaponNotification" Grid.Row="1" Visibility="Collapsed" 
-                HorizontalAlignment="Center" VerticalAlignment="Top" 
-                Margin="0,15,0,0" Panel.ZIndex="1000"
-                Background="#222233" BorderThickness="0"
-                CornerRadius="12" Effect="{StaticResource GlowEffect}">
-            <Grid Margin="12">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                
-                <!-- Заголовок и украшение -->
-                <Border Grid.Row="0" Background="#AAAA44" CornerRadius="8" Margin="0,0,0,10">
-                    <Grid>
-                        <TextBlock Text="НОВОЕ ОРУЖИЕ!" Foreground="#FFFFFF" FontSize="16" FontWeight="Bold" 
-                                 HorizontalAlignment="Center" Margin="8,6,8,6">
-                            <TextBlock.Effect>
-                                <DropShadowEffect Color="#FFFF88" ShadowDepth="1" BlurRadius="4" Opacity="0.8"/>
-                            </TextBlock.Effect>
-                        </TextBlock>
-                        
-                        <Border BorderBrush="#FFFF88" BorderThickness="0,0,0,2" Margin="25,24,25,0" 
-                              VerticalAlignment="Bottom"/>
-                    </Grid>
-                </Border>
-                
-                <!-- Название оружия -->
-                <Border Grid.Row="1" Background="#333355" CornerRadius="8" Margin="0,0,0,0" Padding="12">
-                    <TextBlock x:Name="NotificationWeaponName" Text="Название оружия" Foreground="White" 
-                           FontSize="14" HorizontalAlignment="Center" FontWeight="SemiBold"/>
-                </Border>
-            </Grid>
-        </Border>
-        
-        <!-- Уведомление о бонусе -->
-        <Border x:Name="BoostNotification" Grid.Row="1" Visibility="Collapsed" 
-                HorizontalAlignment="Center" VerticalAlignment="Top" 
-                Margin="0,15,0,0" Panel.ZIndex="1000"
-                Background="#222233" BorderThickness="0"
-                CornerRadius="12" Effect="{StaticResource GlowEffect}">
-            <Grid Margin="12">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                
-                <!-- Заголовок и украшение -->
-                <Border Grid.Row="0" Background="#44AAAA" CornerRadius="8" Margin="0,0,0,10">
-                    <Grid>
-                        <TextBlock Text="БОНУС АКТИВИРОВАН!" Foreground="#FFFFFF" FontSize="16" FontWeight="Bold" 
-                                 HorizontalAlignment="Center" Margin="8,6,8,6">
-                            <TextBlock.Effect>
-                                <DropShadowEffect Color="#88FFFF" ShadowDepth="1" BlurRadius="4" Opacity="0.8"/>
-                            </TextBlock.Effect>
-                        </TextBlock>
-                        
-                        <Border BorderBrush="#88FFFF" BorderThickness="0,0,0,2" Margin="25,24,25,0" 
-                              VerticalAlignment="Bottom"/>
-                    </Grid>
-                </Border>
-                
-                <!-- Описание бонуса -->
-                <Border Grid.Row="1" Background="#335555" CornerRadius="8" Margin="0,0,0,0" Padding="12">
-                    <TextBlock x:Name="NotificationBoostText" Text="Описание бонуса" Foreground="White" 
-                           FontSize="14" HorizontalAlignment="Center" FontWeight="SemiBold"/>
-                </Border>
-            </Grid>
-        </Border>
-        
-        <!-- Уведомление о получении очков навыков -->
-        <Border x:Name="SkillPointsNotification" Grid.Row="1" Visibility="Collapsed" 
-                HorizontalAlignment="Center" VerticalAlignment="Top" 
-                Margin="0,15,0,0" Panel.ZIndex="1000"
-                Background="#222233" BorderThickness="0"
-                CornerRadius="12" Effect="{StaticResource GlowEffect}">
-            <Grid Margin="12">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                
-                <!-- Заголовок и украшение -->
-                <Border Grid.Row="0" Background="#AA44AA" CornerRadius="8" Margin="0,0,0,10">
-                    <Grid>
-                        <TextBlock Text="ПОЛУЧЕНЫ ОЧКИ НАВЫКОВ!" Foreground="#FFFFFF" FontSize="16" FontWeight="Bold" 
-                                 HorizontalAlignment="Center" Margin="8,6,8,6">
-                            <TextBlock.Effect>
-                                <DropShadowEffect Color="#FF88FF" ShadowDepth="1" BlurRadius="4" Opacity="0.8"/>
-                            </TextBlock.Effect>
-                        </TextBlock>
-                        
-                        <Border BorderBrush="#FF88FF" BorderThickness="0,0,0,2" Margin="25,24,25,0" 
-                              VerticalAlignment="Bottom"/>
-                    </Grid>
-                </Border>
-                
-                <!-- Описание полученных очков -->
-                <Border Grid.Row="1" Background="#553355" CornerRadius="8" Margin="0,0,0,0" Padding="12">
-                    <TextBlock x:Name="NotificationSkillPointsText" Text="Количество очков" Foreground="White" 
-                           FontSize="14" HorizontalAlignment="Center" FontWeight="SemiBold"/>
-                </Border>
-            </Grid>
-        </Border>
-        
-        <!-- Уведомление о получении опыта -->
-        <Border x:Name="ExperienceNotification" Grid.Row="1" Visibility="Collapsed" 
-                HorizontalAlignment="Center" VerticalAlignment="Top" 
-                Margin="0,15,0,0" Panel.ZIndex="1000"
-                Background="#222233" BorderThickness="0"
-                CornerRadius="12" Effect="{StaticResource GlowEffect}">
-            <Grid Margin="12">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                
-                <!-- Заголовок и украшение -->
-                <Border Grid.Row="0" Background="#44AA44" CornerRadius="8" Margin="0,0,0,10">
-                    <Grid>
-                        <TextBlock Text="ПОЛУЧЕН ОПЫТ!" Foreground="#FFFFFF" FontSize="16" FontWeight="Bold" 
-                                 HorizontalAlignment="Center" Margin="8,6,8,6">
-                            <TextBlock.Effect>
-                                <DropShadowEffect Color="#88FF88" ShadowDepth="1" BlurRadius="4" Opacity="0.8"/>
-                            </TextBlock.Effect>
-                        </TextBlock>
-                        
-                        <Border BorderBrush="#88FF88" BorderThickness="0,0,0,2" Margin="25,24,25,0" 
-                              VerticalAlignment="Bottom"/>
-                    </Grid>
-                </Border>
-                
-                <!-- Описание полученного опыта -->
-                <Border Grid.Row="1" Background="#335533" CornerRadius="8" Margin="0,0,0,0" Padding="12">
-                    <TextBlock x:Name="NotificationExperienceText" Text="Количество опыта" Foreground="White" 
-                           FontSize="14" HorizontalAlignment="Center" FontWeight="SemiBold"/>
-                </Border>
-            </Grid>
-        </Border>
-        
-        <!-- Активные бонусы -->
-        <Border x:Name="ActiveBoostsPanel" Grid.Row="1" Visibility="Collapsed"
-                HorizontalAlignment="Left" VerticalAlignment="Top" 
-                Margin="15,15,0,0" Panel.ZIndex="900"
-                Background="#222233" BorderThickness="1" BorderBrush="#444466"
-                CornerRadius="8" Opacity="1.0">
+        <!-- Панель активных бонусов -->
+        <Border x:Name="ActiveBoostsPanel" Grid.Row="1" Visibility="Collapsed" Panel.ZIndex="1000"
+                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="15,15,15,0"
+                Background="#222233" BorderThickness="1" BorderBrush="#5555AA" CornerRadius="10" Padding="10">
             <StackPanel x:Name="ActiveBoostsList" Margin="8">
                 <!-- Здесь будут отображаться активные бонусы -->
-                <TextBlock Text="АКТИВНЫЕ БОНУСЫ" Foreground="#AAAAFF" FontSize="12" FontWeight="Bold" 
-                         HorizontalAlignment="Center" Margin="0,0,0,5"/>
+                <TextBlock Text="АКТИВНЫЕ БОНУСЫ" Foreground="#AAAAFF" FontWeight="Bold" Margin="0,0,0,5"
+                           HorizontalAlignment="Center"/>
             </StackPanel>
         </Border>
     </Grid>
