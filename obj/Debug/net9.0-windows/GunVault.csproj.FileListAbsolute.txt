@@ -56,3 +56,5 @@ C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\sand1.png
 C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\water1.png
 C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\enemy3.png
 C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\enemy4.png
+C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\body.png
+C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\guns\defolt.png

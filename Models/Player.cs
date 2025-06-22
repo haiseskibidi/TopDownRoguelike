@@ -12,21 +12,19 @@ namespace GunVault.Models
     public class Player
     {
         private const double PLAYER_SPEED = 5.0;
-        private const double PLAYER_RADIUS = 15.0;
+        private const double PLAYER_RADIUS = 18.75; // Radius for circular collider (was 25.0)
         private const double PLAYER_ROTATION_SPEED = 10.0;
-        private const double FIXED_SPRITE_WIDTH = 60.0;
-        private const double FIXED_SPRITE_HEIGHT = 40.0;
-        private const double ROTATION_POINT_OFFSET = 0.25;
-        private const double BASE_SPRITE_WIDTH = 46.0;
-        private const double BASE_SPRITE_HEIGHT = 32.0;
-        private const double TARGET_SPRITE_HEIGHT = PLAYER_RADIUS * 2.5;
-        
+        private const double BODY_ROTATION_SPEED = 5.0; // Slower, smoother rotation for the body
+        private const double BODY_SIZE = 32.0;
+        private const double GUN_WIDTH = 30.0;
+        private const double GUN_HEIGHT = 10.0;
+
         public struct BulletParams
         {
             public double StartX, StartY, Angle, Speed, Damage, ExplosionRadius, ExplosionDamage;
             public bool IsExplosive;
         }
-        
+
         public double X { get; private set; }
         public double Y { get; private set; }
         public double Health { get; private set; }
@@ -36,22 +34,28 @@ namespace GunVault.Models
         public double BulletDamageModifier { get; private set; }
         public double ReloadSpeedModifier { get; private set; }
         public double MovementSpeed { get; private set; }
-        public UIElement PlayerShape { get; private set; }
-        public Weapon CurrentWeapon { get; private set; }
-        public RectCollider Collider { get; private set; }
-        public Rectangle ColliderVisual { get; private set; }
         
+        // New properties for Body and Gun
+        public UIElement BodyShape { get; private set; }
+        public UIElement GunShape { get; private set; }
+
+        public Weapon CurrentWeapon { get; private set; }
+        public CircleCollider Collider { get; private set; } // Changed to CircleCollider
+        public Rectangle ColliderVisual { get; private set; }
+
         public bool MovingUp { get; set; }
         public bool MovingDown { get; set; }
         public bool MovingLeft { get; set; }
         public bool MovingRight { get; set; }
         public double VelocityX { get; private set; }
         public double VelocityY { get; private set; }
-        
-        private double _currentAngle = 0;
-        private double _targetAngle = 0;
+
+        private double _gunAngle = 0;
+        private double _targetGunAngle = 0;
+        private double _bodyAngle = 0;
+        private double _targetBodyAngle = 0; // Target angle for smooth body rotation
         private readonly SpriteManager? _spriteManager;
-        
+
         // Уровни характеристик игрока
         public int HealthRegenUpgradeLevel { get; private set; } = 0;
         public int MaxHealthUpgradeLevel { get; private set; } = 0;
@@ -78,77 +82,72 @@ namespace GunVault.Models
             BulletSpeedModifier = 1.0;
             BulletDamageModifier = 1.0;
             ReloadSpeedModifier = 1.0;
-            MovementSpeed = 5.0;
+            MovementSpeed = 3.0;
             _spriteManager = spriteManager;
             
             InitializeCollider();
             
             if (spriteManager != null)
             {
-                var spriteSizes = CalculateSpriteSize("player_pistol");
-                PlayerShape = spriteManager.CreateSpriteImage("player_pistol", spriteSizes.Item1, spriteSizes.Item2);
-                
-                if (!(PlayerShape is Image))
-                {
-                    Console.WriteLine("Не удалось загрузить спрайт игрока, использую запасную форму");
-                    PlayerShape = CreateFallbackShape();
-                }
+                BodyShape = spriteManager.CreateSpriteImage("body", BODY_SIZE, BODY_SIZE);
+                GunShape = spriteManager.CreateSpriteImage("guns/defolt", GUN_WIDTH, GUN_HEIGHT);
             }
             else
             {
-                PlayerShape = CreateFallbackShape();
+                // Fallback shapes if sprite manager fails
+                BodyShape = new Ellipse { Width = BODY_SIZE, Height = BODY_SIZE, Fill = Brushes.DarkGray };
+                GunShape = new Rectangle { Width = GUN_WIDTH, Height = GUN_HEIGHT, Fill = Brushes.LightGray };
             }
             
             CurrentWeapon = WeaponFactory.CreateWeapon(WeaponType.Pistol);
             
             UpdatePosition();
             
-            Console.WriteLine($"Игрок создан с фиксированным размером спрайта: {FIXED_SPRITE_WIDTH}x{FIXED_SPRITE_HEIGHT}");
+            Console.WriteLine($"Игрок создан с фиксированным размером спрайта: {BODY_SIZE}x{BODY_SIZE}");
         }
         
         private void InitializeCollider()
         {
-            double colliderWidth = FIXED_SPRITE_WIDTH * 0.55;
-            double colliderHeight = FIXED_SPRITE_HEIGHT * 0.7;
-            double offsetX = -colliderWidth / 2 - 15;
-            double offsetY = -colliderHeight / 2;
-            
             if (Collider == null)
             {
-                Collider = new RectCollider(X + offsetX, Y + offsetY, colliderWidth, colliderHeight);
+                Collider = new CircleCollider(X, Y, PLAYER_RADIUS);
                 ColliderVisual = new Rectangle
                 {
-                    Width = colliderWidth,
-                    Height = colliderHeight,
+                    Width = PLAYER_RADIUS * 2,
+                    Height = PLAYER_RADIUS * 2,
                     Stroke = Brushes.Cyan,
-                    StrokeThickness = 3,
-                    Fill = new SolidColorBrush(Color.FromArgb(80, 0, 255, 255)),
-                    StrokeDashArray = new DoubleCollection { 2, 2 }
+                    StrokeThickness = 1,
+                    RadiusX = PLAYER_RADIUS,
+                    RadiusY = PLAYER_RADIUS
                 };
-                
-                Console.WriteLine($"Создан коллайдер размером: {colliderWidth}x{colliderHeight}");
             }
             else
             {
-                Collider.UpdatePosition(X + offsetX, Y + offsetY);
-                Collider.Width = colliderWidth;
-                Collider.Height = colliderHeight;
-            }
-            
-            if (ColliderVisual != null)
-            {
-                Canvas.SetLeft(ColliderVisual, Collider.X);
-                Canvas.SetTop(ColliderVisual, Collider.Y);
-                ColliderVisual.Width = Collider.Width;
-                ColliderVisual.Height = Collider.Height;
+                Collider.UpdatePosition(X, Y);
             }
         }
 
-        private void UpdateColliderPosition(bool isFlipped)
+        public void AddToCanvas(Canvas canvas)
         {
-            InitializeCollider();
-            Console.WriteLine($"Позиция игрока: ({X:F1}, {Y:F1}), позиция коллайдера: ({Collider.X:F1}, {Collider.Y:F1})");
-            Console.WriteLine($"Фиксированный размер коллайдера: {Collider.Width:F1}x{Collider.Height:F1}");
+            if (!canvas.Children.Contains(BodyShape))
+                canvas.Children.Add(BodyShape);
+            if (!canvas.Children.Contains(GunShape))
+                canvas.Children.Add(GunShape);
+        }
+
+        public void AddColliderVisualToCanvas(Canvas canvas)
+        {
+            if (!canvas.Children.Contains(ColliderVisual))
+            {
+                canvas.Children.Add(ColliderVisual);
+                Panel.SetZIndex(ColliderVisual, 999); // Make sure it's visible
+            }
+        }
+
+        public void RemoveFromCanvas(Canvas canvas)
+        {
+            canvas.Children.Remove(BodyShape);
+            canvas.Children.Remove(GunShape);
         }
         
         private Tuple<double, double> CalculateSpriteSize(string spriteName)
@@ -158,75 +157,46 @@ namespace GunVault.Models
                 double originalWidth = originalProportions.Item1;
                 double originalHeight = originalProportions.Item2;
                 double aspectRatio = originalWidth / originalHeight;
-                double adjustedWidth = FIXED_SPRITE_HEIGHT * aspectRatio;
+                double adjustedWidth = BODY_SIZE * aspectRatio;
                 
-                Console.WriteLine($"Стандартизированный размер для спрайта {spriteName}: {adjustedWidth:F1}x{FIXED_SPRITE_HEIGHT:F1} " +
+                Console.WriteLine($"Стандартизированный размер для спрайта {spriteName}: {adjustedWidth:F1}x{BODY_SIZE:F1} " +
                                   $"(исходные пропорции: {originalWidth}x{originalHeight})");
                 
-                return new Tuple<double, double>(adjustedWidth, FIXED_SPRITE_HEIGHT);
+                return new Tuple<double, double>(adjustedWidth, BODY_SIZE);
             }
             
-            Console.WriteLine($"Используем стандартный размер для неизвестного спрайта {spriteName}: {FIXED_SPRITE_WIDTH}x{FIXED_SPRITE_HEIGHT}");
-            return new Tuple<double, double>(FIXED_SPRITE_WIDTH, FIXED_SPRITE_HEIGHT);
+            Console.WriteLine($"Используем стандартный размер для неизвестного спрайта {spriteName}: {BODY_SIZE}x{BODY_SIZE}");
+            return new Tuple<double, double>(BODY_SIZE, BODY_SIZE);
         }
 
-        public void AddWeaponToCanvas(Canvas canvas)
-        {
-        }
-        
-        public void ChangeWeapon(Weapon newWeapon, Canvas canvas)
+        public void ChangeWeapon(Weapon newWeapon)
         {
             CurrentWeapon = newWeapon;
-            Console.WriteLine($"Оружие изменено на {newWeapon.Name}");
-            
-            try
-            {
-                UpdatePlayerSprite(_spriteManager, canvas);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка при обновлении спрайта игрока: {ex.Message}");
-            }
+            // Later, this will change the GunShape's sprite
+            // For now, it just changes the weapon data
         }
         
         public void UpdatePosition()
         {
-            if (PlayerShape is Image image)
+            // Update body position
+            Canvas.SetLeft(BodyShape, X - BODY_SIZE / 2);
+            Canvas.SetTop(BodyShape, Y - BODY_SIZE / 2);
+            BodyShape.RenderTransformOrigin = new Point(0.5, 0.5);
+            BodyShape.RenderTransform = new RotateTransform(_bodyAngle * 180 / Math.PI);
+
+            // Update gun position
+            Canvas.SetLeft(GunShape, X - GUN_WIDTH / 4); // Position relative to body center
+            Canvas.SetTop(GunShape, Y - GUN_HEIGHT / 2);
+            GunShape.RenderTransformOrigin = new Point(0.25, 0.5); // Rotate around a point near the back
+            GunShape.RenderTransform = new RotateTransform(_gunAngle * 180 / Math.PI);
+            
+            // Update collider position
+            Collider.UpdatePosition(X, Y);
+
+            if (ColliderVisual != null)
             {
-                double actualWidth = image.Width;
-                double actualHeight = image.Height;
-                
-                Canvas.SetLeft(PlayerShape, X - actualWidth / 2);
-                Canvas.SetTop(PlayerShape, Y - actualHeight / 2);
-                
-                double rotationPointX = actualWidth * ROTATION_POINT_OFFSET;
-                double rotationPointY = actualHeight / 2;
-                
-                var rotateTransform = new RotateTransform(_currentAngle * 180 / Math.PI, rotationPointX, rotationPointY);
-                
-                bool isFlipped = Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2;
-                
-                if (isFlipped)
-                {
-                    var scaleTransform = new ScaleTransform(1, -1, rotationPointX, rotationPointY);
-                    TransformGroup transformGroup = new TransformGroup();
-                    transformGroup.Children.Add(scaleTransform);
-                    transformGroup.Children.Add(rotateTransform);
-                    
-                    PlayerShape.RenderTransform = transformGroup;
-                }
-                else
-                {
-                    PlayerShape.RenderTransform = rotateTransform;
-                }
-                
-                UpdateColliderPosition(isFlipped);
-            }
-            else
-            {
-                Canvas.SetLeft(PlayerShape, X - PLAYER_RADIUS);
-                Canvas.SetTop(PlayerShape, Y - PLAYER_RADIUS);
-                UpdateColliderPosition(false);
+                Canvas.SetLeft(ColliderVisual, X - PLAYER_RADIUS);
+                Canvas.SetTop(ColliderVisual, Y - PLAYER_RADIUS);
             }
         }
         
@@ -239,163 +209,77 @@ namespace GunVault.Models
             return angle;
         }
         
-        private void UpdateRotation(double deltaTime)
+        private void UpdateBodyRotation(double deltaTime)
         {
-            double angleDifference = NormalizeAngle(_targetAngle - _currentAngle);
-            double maxRotation = PLAYER_ROTATION_SPEED * deltaTime;
-            
+            // Smoothly rotate the BODY towards the target angle (movement direction)
+            double angleDifference = NormalizeAngle(_targetBodyAngle - _bodyAngle);
+            double maxRotation = BODY_ROTATION_SPEED * deltaTime;
+
             if (Math.Abs(angleDifference) <= maxRotation)
             {
-                _currentAngle = _targetAngle;
+                _bodyAngle = _targetBodyAngle;
             }
             else
             {
-                double sign = Math.Sign(angleDifference);
-                _currentAngle += sign * maxRotation;
-                _currentAngle = NormalizeAngle(_currentAngle);
-            }
-            
-            UpdatePosition();
-        }
-        
-        public void Move()
-        {
-            double dx = 0;
-            double dy = 0;
-            
-            if (MovingUp) dy -= MovementSpeed;
-            if (MovingDown) dy += MovementSpeed;
-            if (MovingLeft) dx -= MovementSpeed;
-            if (MovingRight) dx += MovementSpeed;
-            
-            VelocityX = dx;
-            VelocityY = dy;
-            
-            if (dx != 0 || dy != 0)
-            {
-                if (dx != 0 && dy != 0)
-                {
-                    double length = Math.Sqrt(dx * dx + dy * dy);
-                    dx = dx / length * MovementSpeed;
-                    dy = dy / length * MovementSpeed;
-                    
-                    VelocityX = dx;
-                    VelocityY = dy;
-                }
-                
-                MoveWithSlidingCollisions(dx, dy);
-                
-                UpdatePosition();
+                _bodyAngle += Math.Sign(angleDifference) * maxRotation;
             }
         }
         
-        /// <summary>
-        /// Продвинутое перемещение с обработкой скользящих столкновений
-        /// </summary>
-        private void MoveWithSlidingCollisions(double dx, double dy)
+        private void UpdateRotation(double deltaTime)
         {
-            // Получаем доступ к LevelGenerator через GameManager
-            var gameManager = GetGameManager();
-            if (gameManager == null) 
+            // Smoothly rotate the GUN towards the target angle (mouse cursor)
+            double angleDifference = NormalizeAngle(_targetGunAngle - _gunAngle);
+            double maxRotation = PLAYER_ROTATION_SPEED * deltaTime;
+
+            if (Math.Abs(angleDifference) <= maxRotation)
             {
-                // Если нет GameManager, просто перемещаем напрямую
-                X += dx;
-                Y += dy;
-                return;
+                _gunAngle = _targetGunAngle;
             }
-            
-            // Константа для микро-перемещений (шаг итерации)
-            const double microStep = 0.5;
-            
-            // Шаг 1: Сначала проверим, можно ли двигаться напрямую
-            if (TryMove(dx, dy, gameManager))
+            else
             {
-                // Можем двигаться напрямую без коллизий
-                return;
-            }
-            
-            // Шаг 2: Если нет, пробуем скользящие движения по отдельным осям
-            
-            // Пытаемся двигаться по горизонтали
-            bool movedHorizontally = false;
-            if (dx != 0 && TryMove(dx, 0, gameManager))
-            {
-                movedHorizontally = true;
-            }
-            
-            // Пытаемся двигаться по вертикали
-            bool movedVertically = false;
-            if (dy != 0 && TryMove(0, dy, gameManager))
-            {
-                movedVertically = true;
-            }
-            
-            // Шаг 3: Если ни одно из движений не удалось, пробуем микро-движения
-            if (!movedHorizontally && !movedVertically && (Math.Abs(dx) > microStep || Math.Abs(dy) > microStep))
-            {
-                // Разбиваем движение на более мелкие шаги
-                double stepRatio = microStep / Math.Max(Math.Abs(dx), Math.Abs(dy));
-                double microDx = dx * stepRatio;
-                double microDy = dy * stepRatio;
-                
-                // Рекурсивно вызываем с уменьшенным шагом
-                MoveWithSlidingCollisions(microDx, microDy);
-                
-                // После микрошага пытаемся сделать оставшееся перемещение
-                MoveWithSlidingCollisions(dx - microDx, dy - microDy);
+                _gunAngle += Math.Sign(angleDifference) * maxRotation;
             }
         }
         
-        /// <summary>
-        /// Пытается переместить игрока с проверкой коллизий
-        /// </summary>
-        private bool TryMove(double dx, double dy, GameManager gameManager)
+        public void Move(Func<RectCollider, bool> isAreaWalkableCallback)
         {
-            // Сохраняем текущие координаты
-            double oldX = X;
-            double oldY = Y;
-            
-            // Временно перемещаем игрока и его коллайдер в новую позицию
-            X += dx;
-            Y += dy;
-            
-            // Обновляем позицию коллайдера
-            UpdateColliderPosition(Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2);
-            
-            // Проверяем коллизии
-            bool canMove = gameManager.IsAreaWalkable(Collider);
-            
-            if (!canMove)
+            double moveX = 0;
+            double moveY = 0;
+
+            if (MovingLeft) moveX -= 1;
+            if (MovingRight) moveX += 1;
+            if (MovingUp) moveY -= 1;
+            if (MovingDown) moveY += 1;
+
+            double length = Math.Sqrt(moveX * moveX + moveY * moveY);
+            if (length > 0)
             {
-                // Возвращаем игрока и коллайдер в исходную позицию если есть коллизия
-                X = oldX;
-                Y = oldY;
-                UpdateColliderPosition(Math.Abs(NormalizeAngle(_currentAngle)) > Math.PI / 2);
+                moveX /= length;
+                moveY /= length;
+                _targetBodyAngle = Math.Atan2(moveY, moveX); // Set target angle for smooth rotation
             }
-            
-            return canMove;
-        }
-        
-        /// <summary>
-        /// Получает GameManager из MainWindow
-        /// </summary>
-        private GameManager GetGameManager()
-        {
-            try
+
+            VelocityX = moveX * MovementSpeed;
+            VelocityY = moveY * MovementSpeed;
+
+            double nextX = X + VelocityX;
+            double nextY = Y + VelocityY;
+
+            // Create a temporary collider to test new positions
+            var testCollider = new RectCollider(0, 0, Collider.Radius * 2, Collider.Radius * 2);
+
+            // Check X-axis movement
+            testCollider.UpdatePosition(nextX - Collider.Radius, Y - Collider.Radius);
+            if (isAreaWalkableCallback(testCollider))
             {
-                var mainWindow = Application.Current.MainWindow as GunVault.MainWindow;
-                if (mainWindow == null) return null;
-                
-                var gameManagerField = mainWindow.GetType().GetField("_gameManager", 
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                
-                if (gameManagerField == null) return null;
-                
-                return gameManagerField.GetValue(mainWindow) as GameManager;
+                X = nextX; // Apply X movement
             }
-            catch
+
+            // Check Y-axis movement, using the (potentially updated) X position for the check
+            testCollider.UpdatePosition(X - Collider.Radius, nextY - Collider.Radius);
+            if (isAreaWalkableCallback(testCollider))
             {
-                return null;
+                Y = nextY; // Apply Y movement
             }
         }
         
@@ -447,19 +331,14 @@ namespace GunVault.Models
                 CurrentWeapon.Shoot();
                 var bulletParamsList = new List<BulletParams>();
 
-                double angle = Math.Atan2(targetPoint.Y - Y, targetPoint.X - X);
-
-                // This is a simplified muzzle position calculation.
-                // A more robust solution would be needed for complex sprites.
-                double muzzleOffsetX = 30; 
-                double muzzleX = X + Math.Cos(angle) * muzzleOffsetX;
-                double muzzleY = Y + Math.Sin(angle) * muzzleOffsetX;
-
-                var spriteManager = GetSpriteManager();
+                // Muzzle position should be at the tip of the gun barrel
+                double muzzleDistance = GUN_WIDTH * 0.75; // A bit out from the gun's rotation origin
+                double muzzleX = X + Math.Cos(_gunAngle) * muzzleDistance;
+                double muzzleY = Y + Math.Sin(_gunAngle) * muzzleDistance;
 
                 for (int i = 0; i < CurrentWeapon.BulletsPerShot; i++)
                 {
-                    double spreadAngle = angle + (new Random().NextDouble() - 0.5) * CurrentWeapon.Spread;
+                    double spreadAngle = _gunAngle + (new Random().NextDouble() - 0.5) * CurrentWeapon.Spread;
 
                     var bulletParams = new BulletParams
                     {
@@ -468,18 +347,10 @@ namespace GunVault.Models
                         Angle = spreadAngle,
                         Speed = CurrentWeapon.BulletSpeed * BulletSpeedModifier,
                         Damage = CurrentWeapon.Damage * BulletDamageModifier,
-                        IsExplosive = false,
-                        ExplosionRadius = 0,
-                        ExplosionDamage = 0
+                        IsExplosive = CurrentWeapon.IsExplosive,
+                        ExplosionRadius = CurrentWeapon.ExplosionRadius,
+                        ExplosionDamage = CurrentWeapon.Damage * CurrentWeapon.ExplosionDamageMultiplier
                     };
-                    
-                    // Устанавливаем свойства взрывной пули для ракетницы
-                    if (CurrentWeapon.Type == WeaponType.RocketLauncher)
-                    {
-                        bulletParams.IsExplosive = true;
-                        bulletParams.ExplosionRadius = 100;
-                        bulletParams.ExplosionDamage = CurrentWeapon.Damage * 0.85 * BulletDamageModifier;
-                    }
                     
                     bulletParamsList.Add(bulletParams);
                 }
@@ -491,8 +362,10 @@ namespace GunVault.Models
         public void UpdateWeapon(double deltaTime, Point targetPoint)
         {
             CurrentWeapon.Update(deltaTime);
-            _targetAngle = Math.Atan2(targetPoint.Y - Y, targetPoint.X - X);
+            // Set the target angle for the GUN
+            _targetGunAngle = Math.Atan2(targetPoint.Y - Y, targetPoint.X - X);
             UpdateRotation(deltaTime);
+            UpdateBodyRotation(deltaTime); // Update body rotation here as well
         }
         
         public void StartReload()
@@ -518,88 +391,6 @@ namespace GunVault.Models
         public Weapon GetCurrentWeapon()
         {
             return CurrentWeapon;
-        }
-
-        private void UpdatePlayerSprite(SpriteManager spriteManager, Canvas parentCanvas)
-        {
-            if (spriteManager == null || CurrentWeapon == null)
-                return;
-            
-            string spriteName;
-            
-            switch (CurrentWeapon.Type)
-            {
-                case WeaponType.Pistol:
-                    spriteName = "player_pistol";
-                    break;
-                case WeaponType.Shotgun:
-                    spriteName = "player_shotgun";
-                    break;
-                case WeaponType.AssaultRifle:
-                    spriteName = "player_assaultrifle";
-                    break;
-                case WeaponType.Sniper:
-                    spriteName = "player_pistol";
-                    break;
-                case WeaponType.MachineGun:
-                    spriteName = "player_pistol";
-                    break;
-                case WeaponType.RocketLauncher:
-                    spriteName = "player_pistol";
-                    break;
-                default:
-                    spriteName = "player_pistol";
-                    break;
-            }
-            
-            if (parentCanvas != null)
-            {
-                parentCanvas.Children.Remove(PlayerShape);
-                
-                Console.WriteLine($"Обновляю спрайт игрока для оружия {CurrentWeapon.Name}, использую спрайт {spriteName}");
-                
-                var spriteSizes = CalculateSpriteSize(spriteName);
-                PlayerShape = spriteManager.CreateSpriteImage(spriteName, spriteSizes.Item1, spriteSizes.Item2);
-                
-                if (PlayerShape is Image image)
-                {
-                    // Размер коллайдера не меняем, он теперь фиксированный
-                    Console.WriteLine($"Спрайт загружен, размер: {image.Width}x{image.Height}, коллайдер сохраняет фиксированный размер");
-                }
-                else
-                {
-                    Console.WriteLine("Не удалось загрузить спрайт игрока, использую запасную форму");
-                    PlayerShape = CreateFallbackShape();
-                }
-                
-                parentCanvas.Children.Add(PlayerShape);
-                UpdatePosition();
-            }
-        }
-
-        // Метод для добавления визуализации коллайдера на канвас
-        public void AddColliderVisualToCanvas(Canvas canvas)
-        {
-
-        }
-        
-        // Метод для скрытия/отображения визуализации коллайдера
-        public void ToggleColliderVisibility(bool isVisible)
-        {
-
-        }
-
-        // Вспомогательный метод для создания формы по умолчанию
-        private UIElement CreateFallbackShape()
-        {
-            return new Ellipse
-            {
-                Width = FIXED_SPRITE_WIDTH,
-                Height = FIXED_SPRITE_HEIGHT,
-                Fill = Brushes.Blue,
-                Stroke = Brushes.Black,
-                StrokeThickness = 2
-            };
         }
 
         public void UpgradeHealthRegen() { HealthRegen += 0.5; HealthRegenUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, HealthRegenUpgradeLevel + 1); }

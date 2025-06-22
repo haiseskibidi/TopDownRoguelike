@@ -138,10 +138,8 @@ namespace GunVault.GameEngine
             Canvas.SetLeft(_worldContainer, -_camera.X);
             Canvas.SetTop(_worldContainer, -_camera.Y);
             
-            _gameCanvas.Children.Remove(_player.PlayerShape);
-            _worldContainer.Children.Add(_player.PlayerShape);
-            
-            _player.AddWeaponToCanvas(_worldContainer);
+            _player.AddToCanvas(_worldContainer);
+            //_player.AddColliderVisualToCanvas(_worldContainer);
             
             _chunkManager = new ChunkManager(_worldContainer, _enemies);
             
@@ -180,7 +178,7 @@ namespace GunVault.GameEngine
 
         public void Update(double deltaTime)
         {
-            _player.Move();
+            _player.Move(collider => _levelGenerator.IsAreaWalkable(collider));
             
             // Health Regeneration
             _healthRegenTimer -= deltaTime;
@@ -331,7 +329,7 @@ namespace GunVault.GameEngine
             if (expectedType != _lastWeaponType)
             {
                 Weapon newWeapon = WeaponFactory.CreateWeapon(expectedType);
-                _player.ChangeWeapon(newWeapon, _worldContainer);
+                _player.ChangeWeapon(newWeapon);
                 _lastWeaponType = expectedType;
                 WeaponChanged?.Invoke(this, newWeapon.Name);
             }
@@ -872,10 +870,7 @@ namespace GunVault.GameEngine
             if (player != null && _worldContainer != null)
             {
                 // Добавляем игрока в мировой контейнер
-                _worldContainer.Children.Add(player.PlayerShape);
-                
-                // Добавляем оружие игрока в мировой контейнер
-                player.AddWeaponToCanvas(_worldContainer);
+                player.AddToCanvas(_worldContainer);
                 
                 // Обновляем позицию камеры, чтобы сфокусироваться на игроке
                 _camera.CenterOn(player.X, player.Y);

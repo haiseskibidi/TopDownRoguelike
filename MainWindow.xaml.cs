@@ -141,12 +141,6 @@ public partial class MainWindow : Window
             // Инициализируем обработчик ввода
             _inputHandler = new InputHandler(_player);
             
-            // Добавляем игрока на канвас
-            GameCanvas.Children.Add(_player.PlayerShape);
-            
-            // Метод AddColliderVisualToCanvas все еще существует, но уже ничего не делает
-            _player.AddColliderVisualToCanvas(GameCanvas);
-            
             // Инициализируем менеджер игры, передаем менеджер спрайтов
             _gameManager = new GameManager(GameCanvas, _player, GameCanvas.ActualWidth, GameCanvas.ActualHeight, _spriteManager);
             _gameManager.ScoreChanged += GameManager_ScoreChanged;
@@ -620,8 +614,6 @@ public partial class MainWindow : Window
                 
                 _player = new Player(centerX, centerY, _spriteManager);
                 _inputHandler = new InputHandler(_player);
-                GameCanvas.Children.Add(_player.PlayerShape);
-                _player.AddColliderVisualToCanvas(GameCanvas);
             });
             
             if (cancellationToken.IsCancellationRequested) return;
@@ -1033,16 +1025,10 @@ public partial class MainWindow : Window
     /// </summary>
     private void HideDeathNotification()
     {
-        DoubleAnimation fadeOutAnimation = new DoubleAnimation
-        {
-            From = 1,
-            To = 0,
-            Duration = TimeSpan.FromSeconds(0.5)
-        };
+        DeathNotification.Visibility = Visibility.Collapsed;
         
-        fadeOutAnimation.Completed += (s, e) => DeathNotification.Visibility = Visibility.Collapsed;
-        
-        DeathNotification.BeginAnimation(UIElement.OpacityProperty, fadeOutAnimation);
+        // Останавливаем таймер, если он был запущен
+        _deathCheckTimer?.Stop();
     }
     
     /// <summary>
@@ -1050,71 +1036,25 @@ public partial class MainWindow : Window
     /// </summary>
     private void RespawnPlayer()
     {
-        if (_player != null && _gameManager != null)
-        {
-            // Сбрасываем флаг смерти игрока
-            _playerIsDead = false;
-            
-            // Удаляем старого игрока с канваса
-            try
-            {
-                // Пытаемся удалить игрока из любого родительского контейнера
-                if (_player.PlayerShape != null)
-                {
-                    var parent = VisualTreeHelper.GetParent(_player.PlayerShape) as Panel;
-                    if (parent != null)
-                    {
-                        parent.Children.Remove(_player.PlayerShape);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка при удалении игрока: {ex.Message}");
-            }
-            
-            // Создаем нового игрока в центре мира
-            double centerX = _gameManager.GetWorldWidth() / 2;
-            double centerY = _gameManager.GetWorldHeight() / 2;
-            
-            // Создаем нового игрока
-            _player = new Player(centerX, centerY, _spriteManager);
-            
-            // Обновляем обработчик ввода
-            _inputHandler = new InputHandler(_player);
-            
-            // Сбрасываем уровень и очки
-            _playerLevel = 1;
-            _playerExperience = 0;
-            _experienceToNextLevel = 100;
-            _skillPoints = 0;
-            _score = 0;
-            
-            // Сбрасываем счет в GameManager
-            // Получаем доступ к закрытому полю _score в GameManager с помощью рефлексии
-            var scoreField = _gameManager.GetType().GetField("_score", 
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            
-            if (scoreField != null)
-            {
-                scoreField.SetValue(_gameManager, 0);
-            }
-            
-            // Обновляем менеджер игры
-            _gameManager.UpdatePlayer(_player);
-            
-            // Добавляем игрока на мировой контейнер через GameManager
-            _gameManager.AddPlayerToWorld(_player);
-            
-            // Обновляем информацию об игроке
-            UpdatePlayerInfo();
-            
-            // Запускаем игровой цикл
-            _gameLoop?.Start();
-            
-            // Фокус на канвас для обработки ввода
-            GameCanvas.Focus();
-        }
+        // 1. Stop and clean up the old game instance
+        _gameLoop?.Stop();
+        _gameManager?.Dispose(); // Dispose game manager resources
+        _gameLoop = null;
+        _gameManager = null;
+        _player = null;
+
+        // 2. Clear the canvas
+        GameCanvas.Children.Clear();
+
+        // 3. Re-initialize the game to create a fresh session
+        InitializeGame();
+        
+        // 4. Reset stats and hide death screen
+        _playerIsDead = false;
+        HideDeathNotification();
+        
+        // 5. Restart the death check timer
+        _deathCheckTimer?.Start();
     }
     
     /// <summary>
