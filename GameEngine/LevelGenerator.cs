@@ -64,6 +64,23 @@ namespace GunVault.GameEngine
             MapGenerator mapGenerator = new MapGenerator(mapWidth, mapHeight, _mapSeed);
             _tileMap = mapGenerator.Generate();
             
+            // Создаем безопасную зону для спавна игрока в центре карты
+            int centerX = mapWidth / 2;
+            int centerY = mapHeight / 2;
+            int safeZoneRadius = 3; // Радиус в тайлах
+
+            for (int y = centerY - safeZoneRadius; y <= centerY + safeZoneRadius; y++)
+            {
+                for (int x = centerX - safeZoneRadius; x <= centerX + safeZoneRadius; x++)
+                {
+                    if (x >= 0 && x < mapWidth && y >= 0 && y < mapHeight)
+                    {
+                        // Принудительно устанавливаем проходимый тайл
+                        _tileMap[x, y] = TileType.Grass; 
+                    }
+                }
+            }
+            
             double tilePlacementSize = TileSettings.TILE_SIZE - TileSettings.TILE_OVERLAP;
             
             _tileColliders.Clear();
@@ -371,12 +388,30 @@ namespace GunVault.GameEngine
         /// <returns>Тип тайла или Grass по умолчанию</returns>
         public TileType GetTileType(int tileX, int tileY)
         {
-            if (_tileMap == null || tileX < 0 || tileY < 0 || tileX >= _tileMap.GetLength(0) || tileY >= _tileMap.GetLength(1))
+            if (tileX >= 0 && tileX < _tileMap.GetLength(0) && tileY >= 0 && tileY < _tileMap.GetLength(1))
             {
-                return TileType.Grass; // Возвращаем траву по умолчанию, если координаты вне карты
+                return _tileMap[tileX, tileY];
             }
+            return TileType.Water; 
+        }
+
+        public Point GetRandomWalkablePoint()
+        {
+            if (_tileMap == null)
+            {
+                Console.WriteLine("Ошибка: Карта не сгенерирована. Невозможно найти точку для спавна.");
+                return new Point(_gameWidth / 2, _gameHeight / 2); // Возвращаем центр как запасной вариант
+            }
+
+            int mapWidth = _tileMap.GetLength(0);
+            int mapHeight = _tileMap.GetLength(1);
             
-            return _tileMap[tileX, tileY];
+            // Теперь мы просто возвращаем центр карты, так как он гарантированно безопасен
+            double centerX = (mapWidth / 2) * (TileSettings.TILE_SIZE - TileSettings.TILE_OVERLAP);
+            double centerY = (mapHeight / 2) * (TileSettings.TILE_SIZE - TileSettings.TILE_OVERLAP);
+
+            Console.WriteLine($"Возвращена безопасная точка для спавна в центре карты: ({centerX:F0}, {centerY:F0})");
+            return new Point(centerX, centerY);
         }
     }
 } 

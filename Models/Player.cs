@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Media.Imaging;
 using GunVault.GameEngine;
+using GunVault.Models.PlayerClasses;
 
 namespace GunVault.Models
 {
@@ -36,6 +37,7 @@ namespace GunVault.Models
         public double BulletDamageModifier { get; private set; }
         public double ReloadSpeedModifier { get; private set; }
         public double MovementSpeed { get; private set; }
+        public double BulletSpreadModifier { get; private set; }
         
         // New properties for Body and Gun
         public UIElement BodyShape { get; private set; }
@@ -57,6 +59,10 @@ namespace GunVault.Models
         private double _bodyAngle = 0;
         private double _targetBodyAngle = 0; // Target angle for smooth body rotation
         private readonly SpriteManager? _spriteManager;
+        private bool _isDying = false;
+        
+        // Class System
+        public PlayerClass ChosenClass { get; private set; }
 
         // Уровни характеристик игрока
         public int HealthRegenUpgradeLevel { get; private set; } = 0;
@@ -85,7 +91,9 @@ namespace GunVault.Models
             BulletDamageModifier = 1.0;
             ReloadSpeedModifier = 1.0;
             MovementSpeed = 3.0;
+            BulletSpreadModifier = 1.0;
             _spriteManager = spriteManager;
+            _isDying = false;
             
             InitializeCollider();
             
@@ -333,6 +341,7 @@ namespace GunVault.Models
         
         public void Heal(double amount)
         {
+            if (_isDying) return; // Нельзя лечиться в процессе смерти
             Health += amount;
             if (Health > MaxHealth)
             {
@@ -354,7 +363,7 @@ namespace GunVault.Models
 
                 for (int i = 0; i < CurrentWeapon.BulletsPerShot; i++)
                 {
-                    double spreadAngle = _gunAngle + (new Random().NextDouble() - 0.5) * CurrentWeapon.Spread;
+                    double spreadAngle = _gunAngle + (new Random().NextDouble() - 0.5) * (CurrentWeapon.Spread * BulletSpreadModifier);
 
                     var bulletParams = new BulletParams
                     {
@@ -415,6 +424,7 @@ namespace GunVault.Models
         public void UpgradeBulletDamage() { BulletDamageModifier += 0.1; BulletDamageUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, BulletDamageUpgradeLevel + 1); }
         public void UpgradeReloadSpeed() { ReloadSpeedModifier += 0.1; ReloadSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, ReloadSpeedUpgradeLevel + 1); }
         public void UpgradeMovementSpeed() { MovementSpeed += 0.12; MovementSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, MovementSpeedUpgradeLevel + 1); }
+        public void UpgradeBulletSpread(double amount) { BulletSpreadModifier += amount; if (BulletSpreadModifier < 1.0) BulletSpreadModifier = 1.0; Console.WriteLine($"Модификатор разброса пуль изменен на {amount:F2}, текущее значение: {BulletSpreadModifier:F2}"); }
 
         private SpriteManager GetSpriteManager()
         {
@@ -434,21 +444,28 @@ namespace GunVault.Models
         public void ModifyBulletSpeed(double amount)
         {
             BulletSpeedModifier += amount;
-            if (BulletSpeedModifier < 1.0) BulletSpeedModifier = 1.0;
+            if (BulletSpeedModifier < 0.1) BulletSpeedModifier = 0.1;
             Console.WriteLine($"Модификатор скорости пули изменен на {amount:F2}, текущее значение: {BulletSpeedModifier:F2}");
         }
         
         public void ModifyBulletDamage(double amount)
         {
             BulletDamageModifier += amount;
-            if (BulletDamageModifier < 1.0) BulletDamageModifier = 1.0;
+            if (BulletDamageModifier < 0.1) BulletDamageModifier = 0.1;
             Console.WriteLine($"Модификатор урона пули изменен на {amount:F2}, текущее значение: {BulletDamageModifier:F2}");
+        }
+        
+        public void ModifyBulletSpread(double amount)
+        {
+            BulletSpreadModifier += amount;
+            // No minimum check, spread can be high.
+            Console.WriteLine($"Модификатор разброса пуль изменен на {amount:F2}, текущее значение: {BulletSpreadModifier:F2}");
         }
         
         public void ModifyReloadSpeed(double amount)
         {
             ReloadSpeedModifier += amount;
-            if (ReloadSpeedModifier < 1.0) ReloadSpeedModifier = 1.0;
+            if (ReloadSpeedModifier < 0.1) ReloadSpeedModifier = 0.1;
             if (CurrentWeapon != null)
             {
                 CurrentWeapon.UpdateReloadSpeed(ReloadSpeedModifier);
@@ -458,8 +475,9 @@ namespace GunVault.Models
         
         public void ModifyMovementSpeed(double amount)
         {
+            Console.WriteLine($"ModifyMovementSpeed вызван. Текущая скорость: {MovementSpeed:F2}, Изменение: {amount:F2}");
             MovementSpeed += amount;
-            if (MovementSpeed < PLAYER_SPEED) MovementSpeed = PLAYER_SPEED;
+            if (MovementSpeed < 1.0) MovementSpeed = 1.0; // Prevent player from stopping
             Console.WriteLine($"Скорость движения изменена на {amount:F2}, текущее значение: {MovementSpeed:F2}");
         }
         
@@ -484,9 +502,10 @@ namespace GunVault.Models
         
         public void ReduceMaxHealth(double amount)
         {
+            Console.WriteLine($"ReduceMaxHealth вызван. Текущее макс. здоровье: {MaxHealth:F0}, Уменьшение: {amount:F0}");
             double oldMaxHealth = MaxHealth;
             MaxHealth -= amount;
-            if (MaxHealth < 100) MaxHealth = 100;
+            if (MaxHealth < 50) MaxHealth = 50;
             
             // Уменьшаем текущее здоровье, если оно превышает максимальное
             if (Health > MaxHealth)
@@ -495,6 +514,31 @@ namespace GunVault.Models
             }
             
             Console.WriteLine($"Максимальное здоровье уменьшено на {amount:F0}, текущее значение: {MaxHealth:F0}");
+        }
+
+        public void Kill()
+        {
+            _isDying = true;
+            Health = 0;
+            Console.WriteLine("Player has been killed via suicide action.");
+        }
+
+        public void SetPlayerClass(PlayerClass playerClass)
+        {
+            if (ChosenClass == null)
+            {
+                ChosenClass = playerClass;
+                playerClass.ApplyPassiveBonuses(this);
+                Console.WriteLine($"Player class set to: {playerClass.Name}. Passive bonuses applied.");
+            }
+        }
+
+        public void SetPosition(double newX, double newY)
+        {
+            X = newX;
+            Y = newY;
+            UpdatePosition();
+            Console.WriteLine($"Player position set to: ({X:F1}, {Y:F1})");
         }
     }
 } 

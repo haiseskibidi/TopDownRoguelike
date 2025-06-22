@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using System.Windows.Media;
 using System.Collections.Generic;
+using GunVault.Models.PlayerClasses;
 
 namespace GunVault;
 
@@ -34,6 +35,7 @@ public partial class MainWindow : Window
     private int _playerExperience = 0;
     private int _experienceToNextLevel = 100;
     private int _skillPoints = 0;
+    private bool _classSelectionShown = false;
     
     // Флаг для отображения информации о размерах мира
     private bool _showDebugInfo = false;
@@ -302,13 +304,20 @@ public partial class MainWindow : Window
         _playerExperience += amount;
         bool leveledUp = false;
         
-        if (_playerExperience >= _experienceToNextLevel)
+        while (_playerExperience >= _experienceToNextLevel)
         {
             _playerLevel++;
             _skillPoints++;
             _playerExperience -= _experienceToNextLevel;
             _experienceToNextLevel = (int)(_experienceToNextLevel * 1.5); // Усложняем получение следующего уровня
             leveledUp = true;
+
+            // Check if player reaches level 5 to show class selection, only once
+            if (_playerLevel >= 5 && _player.ChosenClass == null && !_classSelectionShown)
+            {
+                _classSelectionShown = true;
+                ShowClassSelectionScreen();
+            }
         }
         
         UpdatePlayerInfo();
@@ -466,6 +475,42 @@ public partial class MainWindow : Window
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
         _inputHandler?.HandleKeyDown(e);
+
+        if (e.Key == Key.B)
+        {
+            // Открываем/закрываем окно характеристик по нажатию 'B'
+            if (StatsNotification.Visibility == Visibility.Visible)
+            {
+                HideStatsNotification();
+            }
+            else
+            {
+                if (_skillPoints > 0)
+                {
+                    ShowStatsNotification();
+                }
+            }
+        }
+        
+        if (e.Key == Key.Escape)
+        {
+            // Если открыто окно улучшений, закрываем его
+            if (StatsNotification.Visibility == Visibility.Visible)
+            {
+                HideStatsNotification();
+                return; // Выходим, чтобы не открывать меню паузы
+            }
+            
+            // Если открыто окно выбора класса, закрываем его
+            if (ClassSelectionGrid.Visibility == Visibility.Visible)
+            {
+                HideClassSelectionScreen();
+                return; // Выходим, чтобы не открывать меню паузы
+            }
+            
+            // Если другие окна не открыты, переключаем паузу
+            TogglePause();
+        }
         
         if (e.Key == Key.L)
         {
@@ -1046,15 +1091,26 @@ public partial class MainWindow : Window
         // 2. Clear the canvas
         GameCanvas.Children.Clear();
 
-        // 3. Re-initialize the game to create a fresh session
+        // 3. Reset progression stats
+        _score = 0;
+        _playerLevel = 1;
+        _playerExperience = 0;
+        _experienceToNextLevel = 100;
+        _skillPoints = 0;
+        _classSelectionShown = false;
+
+        // 4. Re-initialize the game to create a fresh session
         InitializeGame();
         
-        // 4. Reset stats and hide death screen
+        // 5. Reset stats and hide death screen
         _playerIsDead = false;
         HideDeathNotification();
         
-        // 5. Restart the death check timer
+        // 6. Restart the death check timer
         _deathCheckTimer?.Start();
+        
+        // 7. Update UI to reflect the reset
+        UpdatePlayerInfo();
     }
     
     /// <summary>
@@ -1080,5 +1136,72 @@ public partial class MainWindow : Window
         string message = $"Получено {experience} единиц опыта!";
         _notificationQueue.Enqueue(message);
         ProcessNotificationQueue();
+    }
+
+    private void ClassSelectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_player == null || _player.ChosenClass != null) return;
+
+        var button = sender as Button;
+        if (button?.Tag is PlayerClassType classType)
+        {
+            PlayerClass chosenClass = classType switch
+            {
+                PlayerClassType.Assault => new Assault(),
+                PlayerClassType.Sniper => new Sniper(),
+                PlayerClassType.Heavy => new Heavy(),
+                PlayerClassType.Engineer => new Engineer(),
+                _ => null
+            };
+
+            if (chosenClass != null)
+            {
+                _player.SetPlayerClass(chosenClass);
+                HideClassSelectionScreen();
+                _gameManager?.ResumeGame();
+            }
+        }
+    }
+
+    private void ShowClassSelectionScreen()
+    {
+        _gameManager?.PauseGame(GameState.ClassSelection);
+        ClassSelectionGrid.Visibility = Visibility.Visible;
+    }
+
+    private void HideClassSelectionScreen()
+    {
+        ClassSelectionGrid.Visibility = Visibility.Collapsed;
+        _gameManager?.ResumeGame();
+    }
+
+    private void TogglePause()
+    {
+        if (_gameManager == null || _playerIsDead) return;
+
+        if (_gameManager.CurrentState == GameState.Playing)
+        {
+            _gameManager.PauseGame();
+            PauseMenuGrid.Visibility = Visibility.Visible;
+        }
+        else if (_gameManager.CurrentState == GameState.Paused)
+        {
+            _gameManager.ResumeGame();
+            PauseMenuGrid.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void ResumeButton_Click(object sender, RoutedEventArgs e)
+    {
+        TogglePause();
+    }
+
+    private void SuicideButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_player != null)
+        {
+            _player.Kill();
+        }
+        TogglePause();
     }
 }

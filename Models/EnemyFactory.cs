@@ -37,11 +37,11 @@ namespace GunVault.Models
     {
         private static readonly Dictionary<EnemyType, EnemyConfig> EnemyConfigs = new Dictionary<EnemyType, EnemyConfig>
         {
-            { EnemyType.Basic, new EnemyConfig(health: 40, speed: 60, radius: 15, score: 10, sprite: "enemy1", damage: 10) },
-            { EnemyType.Runner, new EnemyConfig(health: 25, speed: 100, radius: 12, score: 15, sprite: "enemy2", damage: 15) },
-            { EnemyType.Tank, new EnemyConfig(health: 300, speed: 40, radius: 25, score: 30, sprite: "enemy3", damage: 25) },
-            { EnemyType.Bomber, new EnemyConfig(health: 75, speed: 50, radius: 18, score: 20, sprite: "enemy4", damage: 40) },
-            { EnemyType.Boss, new EnemyConfig(health: 1250, speed: 30, radius: 50, score: 250, sprite: "enemy_boss", damage: 50) }
+            { EnemyType.Basic, new EnemyConfig(health: 40, speed: 60, radius: 15, score: 15, sprite: "enemy1", damage: 10) },
+            { EnemyType.Runner, new EnemyConfig(health: 25, speed: 100, radius: 12, score: 20, sprite: "enemy2", damage: 15) },
+            { EnemyType.Tank, new EnemyConfig(health: 300, speed: 40, radius: 25, score: 50, sprite: "enemy3", damage: 25) },
+            { EnemyType.Bomber, new EnemyConfig(health: 75, speed: 50, radius: 18, score: 40, sprite: "enemy4", damage: 40) },
+            { EnemyType.Boss, new EnemyConfig(health: 1250, speed: 30, radius: 50, score: 500, sprite: "enemy_boss", damage: 50) }
         };
         
         public static Enemy CreateEnemy(EnemyType type, double x, double y, int scoreLevel = 0, SpriteManager? spriteManager = null)

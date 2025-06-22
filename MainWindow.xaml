@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:GunVault"
+        xmlns:models="clr-namespace:GunVault.Models.PlayerClasses"
         mc:Ignorable="d"
         Title="GunVault - Рогалик" Height="720" Width="1280" 
         WindowStartupLocation="CenterScreen"
@@ -17,6 +18,100 @@
     <Window.Resources>
         <!-- Эффект свечения для UI -->
         <DropShadowEffect x:Key="GlowEffect" ShadowDepth="0" BlurRadius="15" Color="#5555AA" Opacity="0.8" />
+        
+        <!-- Styles for Class Selection Screen -->
+        <Style x:Key="ClassCardStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2D2D4D"/>
+            <Setter Property="BorderBrush" Value="#4A4A7A"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Margin" Value="15"/>
+            <Setter Property="Width" Value="250"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect ShadowDepth="0" BlurRadius="10" Color="#000000" Opacity="0.5"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="CardBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CardBorder" Property="Background" Value="#3D3D5D"/>
+                                <Setter TargetName="CardBorder" Property="BorderBrush" Value="#6A6AFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="CardBorder" Property="Background" Value="#4D4D6D"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CardTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#E0E0FF"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="CardDescriptionStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#B0B0D0"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Height" Value="100"/>
+        </Style>
+
+        <Style x:Key="CardBonusStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#99FF99"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="CardDebuffStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#FF9999"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,5,0,0"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="CardButtonStyle" TargetType="Button">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#4A4A7A"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Margin" Value="0,15,0,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#6A6AFF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
         
         <!-- Стиль для круглой иконки характеристики -->
         <Style x:Key="StatIconStyle" TargetType="{x:Type Border}">
@@ -74,6 +169,26 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- Styles for Pause Menu -->
+        <Style x:Key="PauseTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="48"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#E0E0FF"/>
+            <Setter Property="Margin" Value="0,0,0,30"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect ShadowDepth="2" BlurRadius="10" Color="#000000" Opacity="0.7"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PauseButtonStyle" TargetType="Button" BasedOn="{StaticResource CardButtonStyle}">
+            <Setter Property="Width" Value="300"/>
+            <Setter Property="Padding" Value="20,15"/>
+            <Setter Property="Margin" Value="15"/>
+            <Setter Property="FontSize" Value="24"/>
         </Style>
     </Window.Resources>
     <Grid>
@@ -622,5 +737,72 @@
                            HorizontalAlignment="Center"/>
             </StackPanel>
         </Border>
+
+        <!-- Class Selection Screen -->
+        <Grid x:Name="ClassSelectionGrid" Grid.Row="0" Grid.RowSpan="2" Background="#AA000000" Visibility="Collapsed" Panel.ZIndex="3000">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="Выберите свой класс" FontSize="48" Foreground="White" FontWeight="Bold" 
+                           HorizontalAlignment="Center" Margin="0,0,0,40"/>
+                <StackPanel Orientation="Horizontal">
+                    <!-- Assault Card -->
+                    <Button Style="{StaticResource ClassCardStyle}" Tag="{x:Static models:PlayerClassType.Assault}" Click="ClassSelectionButton_Click">
+                        <StackPanel>
+                            <TextBlock Text="Штурмовик" Style="{StaticResource CardTitleStyle}"/>
+                            <TextBlock Text="Мастер ближнего боя, специализирующийся на подавляющем огне и высокой скорострельности." 
+                                       Style="{StaticResource CardDescriptionStyle}"/>
+                            <TextBlock Text="Пассивный бонус:
++15% к скорости перезарядки" Style="{StaticResource CardBonusStyle}"/>
+                            <TextBlock Text="Штраф:
++25% к разбросу пуль" Style="{StaticResource CardDebuffStyle}"/>
+                        </StackPanel>
+                    </Button>
+                    <!-- Sniper Card -->
+                    <Button Style="{StaticResource ClassCardStyle}" Tag="{x:Static models:PlayerClassType.Sniper}" Click="ClassSelectionButton_Click">
+                        <StackPanel>
+                            <TextBlock Text="Снайпер" Style="{StaticResource CardTitleStyle}"/>
+                            <TextBlock Text="Специалист по дальнему бою, наносящий огромный урон одиночными точными выстрелами." 
+                                       Style="{StaticResource CardDescriptionStyle}"/>
+                            <TextBlock Text="Пассивный бонус:
++20% к урону от пуль" Style="{StaticResource CardBonusStyle}"/>
+                            <TextBlock Text="Штраф:
+-25 макс. здоровья" Style="{StaticResource CardDebuffStyle}"/>
+                        </StackPanel>
+                    </Button>
+                    <!-- Heavy Card -->
+                    <Button Style="{StaticResource ClassCardStyle}" Tag="{x:Static models:PlayerClassType.Heavy}" Click="ClassSelectionButton_Click">
+                        <StackPanel>
+                            <TextBlock Text="Тяжёлый" Style="{StaticResource CardTitleStyle}"/>
+                            <TextBlock Text="Живая крепость, способная выдерживать огромный урон и отвечать мощными атаками по площади." 
+                                       Style="{StaticResource CardDescriptionStyle}"/>
+                            <TextBlock Text="Пассивный бонус:
++50 к макс. здоровью" Style="{StaticResource CardBonusStyle}"/>
+                            <TextBlock Text="Штраф:
+-0.6 к скорости" Style="{StaticResource CardDebuffStyle}"/>
+                        </StackPanel>
+                    </Button>
+                    <!-- Engineer Card -->
+                    <Button Style="{StaticResource ClassCardStyle}" Tag="{x:Static models:PlayerClassType.Engineer}" Click="ClassSelectionButton_Click">
+                        <StackPanel>
+                            <TextBlock Text="Инженер" Style="{StaticResource CardTitleStyle}"/>
+                            <TextBlock Text="Класс поддержки, способный выживать в бою за счет ремонта и усиливать себя с помощью технологий." 
+                                       Style="{StaticResource CardDescriptionStyle}"/>
+                            <TextBlock Text="Пассивный бонус:
++0.5 регенерации здоровья" Style="{StaticResource CardBonusStyle}"/>
+                            <TextBlock Text="Штраф:
+-10% к урону от пуль" Style="{StaticResource CardDebuffStyle}"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <!-- Pause Menu -->
+        <Grid x:Name="PauseMenuGrid" Grid.Row="1" Background="#AA000000" Visibility="Collapsed" Panel.ZIndex="2000">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="Пауза" Style="{StaticResource PauseTitleStyle}" HorizontalAlignment="Center"/>
+                <Button x:Name="ResumeButton" Content="Продолжить" Style="{StaticResource PauseButtonStyle}" Click="ResumeButton_Click"/>
+                <Button x:Name="SuicideButton" Content="Совершить суицид" Style="{StaticResource PauseButtonStyle}" Click="SuicideButton_Click"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>

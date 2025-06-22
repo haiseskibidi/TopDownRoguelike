@@ -13,8 +13,16 @@ using System.Collections.Concurrent;
 
 namespace GunVault.GameEngine
 {
+    public enum GameState
+    {
+        Playing,
+        Paused,
+        ClassSelection
+    }
+
     public class GameManager
     {
+        public GameState CurrentState { get; private set; }
         private Canvas _gameCanvas;
         private Player _player;
         private List<Enemy> _enemies;
@@ -146,6 +154,10 @@ namespace GunVault.GameEngine
             _levelGenerator = new LevelGenerator(_worldContainer, _worldWidth, _worldHeight, _spriteManager);
             _levelGenerator.GenerateLevel();
             
+            // Move player to a valid spawn point after the level is generated
+            Point spawnPoint = _levelGenerator.GetRandomWalkablePoint();
+            _player.SetPosition(spawnPoint.X, spawnPoint.Y);
+            
             InitializeChunks();
             
             _chunkManager.EnemiesReadyToRestore += OnEnemiesReadyToRestore;
@@ -178,6 +190,14 @@ namespace GunVault.GameEngine
 
         public void Update(double deltaTime)
         {
+            if (CurrentState != GameState.Playing)
+            {
+                // If the game is not in the 'Playing' state, do not update game logic.
+                // We might still want some UI updates or other things to happen,
+                // but core game mechanics like movement, shooting, spawning are paused.
+                return;
+            }
+            
             _player.Move(collider => _levelGenerator.IsAreaWalkable(collider));
             
             // Health Regeneration
@@ -1455,6 +1475,34 @@ namespace GunVault.GameEngine
             }
             
             return boostsInfo;
+        }
+
+        public void PauseGame(GameState newState = GameState.Paused)
+        {
+            if (CurrentState == GameState.Playing)
+            {
+                CurrentState = newState;
+                Console.WriteLine($"Game paused. State: {CurrentState}");
+            }
+        }
+
+        public void ResumeGame()
+        {
+            if (CurrentState != GameState.Playing)
+            {
+                CurrentState = GameState.Playing;
+                Console.WriteLine("Game resumed.");
+            }
+        }
+
+        public Point GetValidSpawnPoint()
+        {
+            if (_levelGenerator != null)
+            {
+                return _levelGenerator.GetRandomWalkablePoint();
+            }
+            // Fallback if the level generator is not ready
+            return new Point(_worldWidth / 2, _worldHeight / 2);
         }
     }
 } 
