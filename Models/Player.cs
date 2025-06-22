@@ -15,6 +15,8 @@ namespace GunVault.Models
         private const double PLAYER_RADIUS = 18.75; // Radius for circular collider (was 25.0)
         private const double PLAYER_ROTATION_SPEED = 10.0;
         private const double BODY_ROTATION_SPEED = 5.0; // Slower, smoother rotation for the body
+        private const double ACCELERATION = 0.1; // How quickly the player gains speed
+        private const double FRICTION = 0.95;    // How quickly the player slows down (lower = more friction)
         private const double BODY_SIZE = 32.0;
         private const double GUN_WIDTH = 30.0;
         private const double GUN_HEIGHT = 10.0;
@@ -111,15 +113,15 @@ namespace GunVault.Models
             if (Collider == null)
             {
                 Collider = new CircleCollider(X, Y, PLAYER_RADIUS);
-                ColliderVisual = new Rectangle
-                {
-                    Width = PLAYER_RADIUS * 2,
-                    Height = PLAYER_RADIUS * 2,
-                    Stroke = Brushes.Cyan,
-                    StrokeThickness = 1,
-                    RadiusX = PLAYER_RADIUS,
-                    RadiusY = PLAYER_RADIUS
-                };
+                // ColliderVisual = new Rectangle
+                // {
+                //     Width = PLAYER_RADIUS * 2,
+                //     Height = PLAYER_RADIUS * 2,
+                //     Stroke = Brushes.Cyan,
+                //     StrokeThickness = 1,
+                //     RadiusX = PLAYER_RADIUS,
+                //     RadiusY = PLAYER_RADIUS
+                // };
             }
             else
             {
@@ -135,14 +137,14 @@ namespace GunVault.Models
                 canvas.Children.Add(GunShape);
         }
 
-        public void AddColliderVisualToCanvas(Canvas canvas)
-        {
-            if (!canvas.Children.Contains(ColliderVisual))
-            {
-                canvas.Children.Add(ColliderVisual);
-                Panel.SetZIndex(ColliderVisual, 999); // Make sure it's visible
-            }
-        }
+        // public void AddColliderVisualToCanvas(Canvas canvas)
+        // {
+        //     if (!canvas.Children.Contains(ColliderVisual))
+        //     {
+        //         canvas.Children.Add(ColliderVisual);
+        //         Panel.SetZIndex(ColliderVisual, 999); // Make sure it's visible
+        //     }
+        // }
 
         public void RemoveFromCanvas(Canvas canvas)
         {
@@ -193,11 +195,11 @@ namespace GunVault.Models
             // Update collider position
             Collider.UpdatePosition(X, Y);
 
-            if (ColliderVisual != null)
-            {
-                Canvas.SetLeft(ColliderVisual, X - PLAYER_RADIUS);
-                Canvas.SetTop(ColliderVisual, Y - PLAYER_RADIUS);
-            }
+            // if (ColliderVisual != null)
+            // {
+            //     Canvas.SetLeft(ColliderVisual, X - PLAYER_RADIUS);
+            //     Canvas.SetTop(ColliderVisual, Y - PLAYER_RADIUS);
+            // }
         }
         
         private double NormalizeAngle(double angle)
@@ -243,24 +245,38 @@ namespace GunVault.Models
         
         public void Move(Func<RectCollider, bool> isAreaWalkableCallback)
         {
-            double moveX = 0;
-            double moveY = 0;
+            double targetVelX = 0;
+            double targetVelY = 0;
 
-            if (MovingLeft) moveX -= 1;
-            if (MovingRight) moveX += 1;
-            if (MovingUp) moveY -= 1;
-            if (MovingDown) moveY += 1;
+            if (MovingLeft) targetVelX -= 1;
+            if (MovingRight) targetVelX += 1;
+            if (MovingUp) targetVelY -= 1;
+            if (MovingDown) targetVelY += 1;
 
-            double length = Math.Sqrt(moveX * moveX + moveY * moveY);
+            double length = Math.Sqrt(targetVelX * targetVelX + targetVelY * targetVelY);
             if (length > 0)
             {
-                moveX /= length;
-                moveY /= length;
-                _targetBodyAngle = Math.Atan2(moveY, moveX); // Set target angle for smooth rotation
+                // Normalize and set target velocity based on input
+                targetVelX = (targetVelX / length) * MovementSpeed;
+                targetVelY = (targetVelY / length) * MovementSpeed;
             }
 
-            VelocityX = moveX * MovementSpeed;
-            VelocityY = moveY * MovementSpeed;
+            // Apply acceleration towards the target velocity
+            VelocityX += (targetVelX - VelocityX) * ACCELERATION;
+            VelocityY += (targetVelY - VelocityY) * ACCELERATION;
+            
+            // Set target body angle based on current velocity, if moving
+            if (Math.Abs(VelocityX) > 0.1 || Math.Abs(VelocityY) > 0.1)
+            {
+                _targetBodyAngle = Math.Atan2(VelocityY, VelocityX);
+            }
+
+            // Apply friction when there is no input to slow down
+            if (Math.Abs(targetVelX) < 0.01 && Math.Abs(targetVelY) < 0.01)
+            {
+                VelocityX *= FRICTION;
+                VelocityY *= FRICTION;
+            }
 
             double nextX = X + VelocityX;
             double nextY = Y + VelocityY;
