@@ -95,6 +95,7 @@ namespace GunVault.GameEngine
         public event EventHandler<string> BoostActivated;
 
         private ObjectPool<Bullet> _bulletPool;
+        private const double RICHOCHET_SEARCH_RADIUS = 300.0; // Радиус поиска новой цели для рикошета
 
         public GameManager(Canvas gameCanvas, Player player, double gameWidth, double gameHeight, SpriteManager? spriteManager = null)
         {
@@ -116,7 +117,8 @@ namespace GunVault.GameEngine
             
             _bulletPool = new ObjectPool<Bullet>(
                 factory: () => {
-                    var bullet = new Bullet(0, 0, 0, 0, 0, "bullet", _spriteManager);
+                    // Provide a default bulletSize and spriteName here, it will be overridden by Init
+                    var bullet = new Bullet(0, 0, 0, 0, 0, 6.0, "", _spriteManager);
                     _worldContainer.Children.Add(bullet.BulletShape);
                     bullet.Deactivate();
                     return bullet;
@@ -215,6 +217,8 @@ namespace GunVault.GameEngine
             Canvas.SetLeft(_worldContainer, -_camera.X);
             Canvas.SetTop(_worldContainer, -_camera.Y);
             
+            // CheckWeaponUpgrade();
+            
             _chunkManager.UpdateActiveChunks(_player.X, _player.Y, _player.VelocityX, _player.VelocityY);
             _chunkManager.UpdateChunkMarkers();
             
@@ -260,7 +264,6 @@ namespace GunVault.GameEngine
                 }
             }
 
-            CheckWeaponUpgrade();
             _enemySpawnTimer -= deltaTime;
             if (_enemySpawnTimer <= 0)
             {
@@ -293,7 +296,7 @@ namespace GunVault.GameEngine
                 foreach (var p in bulletParams)
                 {
                     var bullet = _bulletPool.Get();
-                    bullet.Init(p.StartX, p.StartY, p.Angle, p.Speed, p.Damage, "bullet", _spriteManager, p.IsExplosive, p.ExplosionRadius, p.ExplosionDamage);
+                    bullet.Init(p.StartX, p.StartY, p.Angle, p.Speed, p.Damage, p.BulletSize, p.BulletSpriteName, p.IsExplosive, p.ExplosionRadius, p.ExplosionDamage, p.CanRicochet, p.MaxRicochets);
                     _bullets.Add(bullet);
                     
                     // Определяем чанк и добавляем пулю в него
@@ -341,19 +344,44 @@ namespace GunVault.GameEngine
             }
         }
 
+        /*
         private void CheckWeaponUpgrade()
         {
-            WeaponType currentType = _player.GetWeaponType();
-            WeaponType expectedType = WeaponFactory.GetWeaponTypeForScore(_score);
+            WeaponType nextWeapon = _player.GetWeaponType();
             
-            if (expectedType != _lastWeaponType)
+            if (_score >= 1000)
             {
-                Weapon newWeapon = WeaponFactory.CreateWeapon(expectedType);
-                _player.ChangeWeapon(newWeapon);
-                _lastWeaponType = expectedType;
-                WeaponChanged?.Invoke(this, newWeapon.Name);
+                nextWeapon = WeaponType.Laser;
+            }
+            else if (_score >= 800)
+            {
+                nextWeapon = WeaponType.RocketLauncher;
+            }
+            else if (_score >= 600)
+            {
+                nextWeapon = WeaponType.MachineGun;
+            }
+            else if (_score >= 400)
+            {
+                nextWeapon = WeaponType.Sniper;
+            }
+            else if (_score >= 200)
+            {
+                nextWeapon = WeaponType.AssaultRifle;
+            }
+            else if (_score >= 50)
+            {
+                nextWeapon = WeaponType.Shotgun;
+            }
+
+            if (nextWeapon != _lastWeaponType)
+            {
+                _player.ChangeWeapon(WeaponFactory.CreateWeapon(nextWeapon));
+                _lastWeaponType = nextWeapon;
+                WeaponChanged?.Invoke(this, _player.GetWeaponName());
             }
         }
+        */
 
         private Enemy FindNearestEnemy()
         {
@@ -685,15 +713,18 @@ namespace GunVault.GameEngine
                     // Столкновения с врагами
                     foreach (var enemy in enemiesInVicinity)
                     {
-                        if (bullet.Collides(enemy))
+                        if (bullet.Collides(enemy) && !bullet.HasHitEnemy(enemy))
                         {
                             HandleBulletEnemyCollision(bullet, enemy);
                             bulletHitSomething = true;
-                            break; 
+                            // Если пуля не была деактивирована (т.е. срикошетила), мы не выходим из цикла,
+                            // чтобы она могла поразить нескольких врагов за один кадр.
+                            if (!bullet.IsActive)
+                                break;
                         }
                     }
 
-                    if (bulletHitSomething) continue;
+                    if (bulletHitSomething && !bullet.IsActive) continue;
 
                     // Столкновения с тайлами
                     var nearbyTileColliders = _chunkManager.GetTileCollidersInVicinity(chunk);
@@ -720,7 +751,26 @@ namespace GunVault.GameEngine
         private void HandleBulletEnemyCollision(Bullet bullet, Enemy enemy)
         {
             bool isEnemyAlive = enemy.TakeDamage(bullet.Damage);
-            bullet.Deactivate();
+            bullet.AddHitEnemy(enemy); // Регистрируем попадание
+
+            // Проверяем, нужно ли рикошетить
+            if (bullet.CanRicochet && bullet.RicochetCount < bullet.MaxRicochets)
+            {
+                if (TryRicochetBullet(bullet, enemy))
+                {
+                    // Пуля успешно срикошетила, не деактивируем ее
+                }
+                else
+                {
+                    // Не нашли цель для рикошета, деактивируем пулю
+                    bullet.Deactivate();
+                }
+            }
+            else
+            {
+                // У пули нет рикошета или кончились отскоки, деактивируем
+                bullet.Deactivate();
+            }
 
             if (bullet.IsExplosive && bullet.ExplosionRadius > 0)
             {
@@ -748,6 +798,52 @@ namespace GunVault.GameEngine
             }
         }
         
+        private bool TryRicochetBullet(Bullet bullet, Enemy originalTarget)
+        {
+            Enemy newTarget = FindNearestEnemyForRicochet(bullet.X, bullet.Y, bullet);
+            if (newTarget != null)
+            {
+                double newAngle = Math.Atan2(newTarget.Y - bullet.Y, newTarget.X - bullet.X);
+                bullet.Redirect(newAngle);
+                
+                // Сразу после рикошета проверяем, не попали ли мы в новую цель
+                if (bullet.Collides(newTarget))
+                {
+                    // Если попали, обрабатываем это столкновение немедленно
+                    HandleBulletEnemyCollision(bullet, newTarget);
+                }
+
+                return true;
+            }
+            return false;
+        }
+        
+        private Enemy FindNearestEnemyForRicochet(double fromX, double fromY, Bullet bullet)
+        {
+            Enemy nearestEnemy = null;
+            double minDistanceSq = RICHOCHET_SEARCH_RADIUS * RICHOCHET_SEARCH_RADIUS;
+
+            var (chunkX, chunkY) = Chunk.WorldToChunk(fromX, fromY);
+            var chunk = _chunkManager.GetOrCreateChunk(chunkX, chunkY);
+            var enemiesToCheck = _chunkManager.GetEnemiesInVicinity(chunk);
+
+            foreach (var enemy in enemiesToCheck)
+            {
+                if (bullet.HasHitEnemy(enemy))
+                {
+                    continue; // Пропускаем врагов, в которых уже попали
+                }
+
+                double distanceSq = (enemy.X - fromX) * (enemy.X - fromX) + (enemy.Y - fromY) * (enemy.Y - fromY);
+                if (distanceSq < minDistanceSq)
+                {
+                    minDistanceSq = distanceSq;
+                    nearestEnemy = enemy;
+                }
+            }
+            return nearestEnemy;
+        }
+
         private void HandleBulletTileCollision(Bullet bullet)
         {
             bullet.Deactivate();

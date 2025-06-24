@@ -49,7 +49,8 @@ namespace GunVault.Models
                         reloadTime: 1.5,
                         spread: 0.05,
                         bulletsPerShot: 1,
-                        bulletSpriteName: BulletSpriteNames[type]
+                        bulletSpriteName: BulletSpriteNames[type],
+                        bulletSize: 6.0
                     );
                     
                 case WeaponType.Shotgun:
@@ -64,7 +65,8 @@ namespace GunVault.Models
                         reloadTime: 2.0,
                         spread: 0.2,
                         bulletsPerShot: 5,
-                        bulletSpriteName: BulletSpriteNames[type]
+                        bulletSpriteName: BulletSpriteNames[type],
+                        bulletSize: 3.0
                     );
                     
                 case WeaponType.AssaultRifle:
@@ -79,7 +81,8 @@ namespace GunVault.Models
                         reloadTime: 2.0,
                         spread: 0.1,
                         bulletsPerShot: 1,
-                        bulletSpriteName: BulletSpriteNames[type]
+                        bulletSpriteName: BulletSpriteNames[type],
+                        bulletSize: 5.0
                     );
                     
                 case WeaponType.MachineGun:
@@ -94,7 +97,8 @@ namespace GunVault.Models
                         reloadTime: 3.0,
                         spread: 0.15,
                         bulletsPerShot: 1,
-                        bulletSpriteName: BulletSpriteNames[type]
+                        bulletSpriteName: BulletSpriteNames[type],
+                        bulletSize: 5.0
                     );
                     
                 case WeaponType.Sniper:
@@ -109,7 +113,8 @@ namespace GunVault.Models
                         reloadTime: 2.5,
                         spread: 0.01,
                         bulletsPerShot: 1,
-                        bulletSpriteName: BulletSpriteNames[type]
+                        bulletSpriteName: BulletSpriteNames[type],
+                        bulletSize: 8.0
                     );
                     
                 case WeaponType.RocketLauncher:
@@ -125,6 +130,7 @@ namespace GunVault.Models
                         spread: 0.05,
                         bulletsPerShot: 1,
                         bulletSpriteName: BulletSpriteNames[type],
+                        bulletSize: 10.0,
                         isExplosive: true,
                         explosionRadius: 100,
                         explosionDamageMultiplier: 0.85

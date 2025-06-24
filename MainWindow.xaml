@@ -327,7 +327,7 @@
                 HorizontalAlignment="Left" VerticalAlignment="Bottom" 
                 Margin="15,0,0,15" Panel.ZIndex="1000"
                 Background="#222233" BorderThickness="0"
-                CornerRadius="12" Effect="{StaticResource GlowEffect}">
+                CornerRadius="12">
             <Grid Margin="12">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -386,10 +386,10 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             
-                            <TextBlock Grid.Row="0" Text="ВОССТАНОВЛЕНИЕ" Foreground="#DDDDDD" FontSize="11" 
+                            <TextBlock Grid.Row="0" Text="РЕГЕНЕРАЦИЯ" Foreground="#DDDDDD" FontSize="11" 
                                      FontWeight="Bold" Margin="0,0,0,2"/>
                             
-                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10">
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10" x:Name="HealthRegenBar">
                                 <Border x:Name="HealthRegenFill" Background="#FF5555" CornerRadius="4,0,0,4" 
                                         Width="0" Height="10" HorizontalAlignment="Left">
                                     <Border.Effect>
@@ -399,14 +399,10 @@
                             </Border>
                         </Grid>
                         
-                        <Button Grid.Column="2" Width="30" Height="30" Style="{StaticResource RoundButton}" 
+                        <Button Grid.Column="2" Width="30" Height="30" Style="{StaticResource RoundButton}"
                                 Background="#FF7777" BorderThickness="0" Cursor="Hand"
                                 Content="+" FontWeight="Bold" FontSize="18" Foreground="White"
-                                Click="HealthRegenUpgrade_Click">
-                                    <Button.Effect>
-                                        <DropShadowEffect Color="#FF5555" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
-                                    </Button.Effect>
-                                </Button>
+                                Click="HealthRegenUpgrade_Click" x:Name="HealthRegenUpgradeButton"/>
                     </Grid>
                     
                     <!-- Max Health -->
@@ -438,7 +434,7 @@
                             <TextBlock Grid.Row="0" Text="МАКС. ЗДОРОВЬЕ" Foreground="#DDDDDD" FontSize="11" 
                                      FontWeight="Bold" Margin="0,0,0,2"/>
                             
-                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10">
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10" x:Name="MaxHealthBar">
                                 <Border x:Name="MaxHealthFill" Background="#FF9955" CornerRadius="4,0,0,4" 
                                         Width="0" Height="10" HorizontalAlignment="Left">
                                     <Border.Effect>
@@ -451,11 +447,7 @@
                         <Button Grid.Column="2" Width="30" Height="30" Style="{StaticResource RoundButton}"
                                 Background="#FFAA77" BorderThickness="0" Cursor="Hand"
                                 Content="+" FontWeight="Bold" FontSize="18" Foreground="White"
-                                Click="MaxHealthUpgrade_Click">
-                                    <Button.Effect>
-                                        <DropShadowEffect Color="#FF9955" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
-                                    </Button.Effect>
-                                </Button>
+                                Click="MaxHealthUpgrade_Click" x:Name="MaxHealthUpgradeButton"/>
                     </Grid>
                     
                     <!-- Bullet Speed -->
@@ -487,7 +479,7 @@
                             <TextBlock Grid.Row="0" Text="СКОРОСТЬ ПУЛИ" Foreground="#DDDDDD" FontSize="11" 
                                      FontWeight="Bold" Margin="0,0,0,2"/>
                             
-                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10">
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10" x:Name="BulletSpeedBar">
                                 <Border x:Name="BulletSpeedFill" Background="#55AAFF" CornerRadius="4,0,0,4" 
                                         Width="0" Height="10" HorizontalAlignment="Left">
                                     <Border.Effect>
@@ -498,13 +490,9 @@
                         </Grid>
                         
                         <Button Grid.Column="2" Width="30" Height="30" Style="{StaticResource RoundButton}"
-                                Background="#77BBFF" BorderThickness="0" Cursor="Hand"
+                                Background="#77CCFF" BorderThickness="0" Cursor="Hand"
                                 Content="+" FontWeight="Bold" FontSize="18" Foreground="White"
-                                Click="BulletSpeedUpgrade_Click">
-                                    <Button.Effect>
-                                        <DropShadowEffect Color="#55AAFF" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
-                                    </Button.Effect>
-                                </Button>
+                                Click="BulletSpeedUpgrade_Click" x:Name="BulletSpeedUpgradeButton"/>
                     </Grid>
                     
                     <!-- Bullet Damage -->
@@ -536,7 +524,7 @@
                             <TextBlock Grid.Row="0" Text="УРОН ПУЛИ" Foreground="#DDDDDD" FontSize="11" 
                                      FontWeight="Bold" Margin="0,0,0,2"/>
                             
-                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10">
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10" x:Name="BulletDamageBar">
                                 <Border x:Name="BulletDamageFill" Background="#FF55AA" CornerRadius="4,0,0,4" 
                                         Width="0" Height="10" HorizontalAlignment="Left">
                                     <Border.Effect>
@@ -549,14 +537,10 @@
                         <Button Grid.Column="2" Width="30" Height="30" Style="{StaticResource RoundButton}"
                                 Background="#FF77BB" BorderThickness="0" Cursor="Hand"
                                 Content="+" FontWeight="Bold" FontSize="18" Foreground="White"
-                                Click="BulletDamageUpgrade_Click">
-                                    <Button.Effect>
-                                        <DropShadowEffect Color="#FF55AA" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
-                                    </Button.Effect>
-                                </Button>
+                                Click="BulletDamageUpgrade_Click" x:Name="BulletDamageUpgradeButton"/>
                     </Grid>
                     
-                    <!-- Reload -->
+                    <!-- Fire Rate -->
                     <Grid Margin="0,6" Height="30">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -564,7 +548,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         
-                        <Border Grid.Column="0" Background="#55FF55" Width="30" Height="30">
+                        <Border Grid.Column="0" Background="#55FFAA" Width="30" Height="30">
                             <Border.CornerRadius>
                                 <CornerRadius>15</CornerRadius>
                             </Border.CornerRadius>
@@ -582,30 +566,26 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             
-                            <TextBlock Grid.Row="0" Text="ПЕРЕЗАРЯДКА" Foreground="#DDDDDD" FontSize="11" 
+                            <TextBlock Grid.Row="0" Text="СКОРОСТРЕЛЬНОСТЬ" Foreground="#DDDDDD" FontSize="11" 
                                      FontWeight="Bold" Margin="0,0,0,2"/>
                             
-                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10">
-                                <Border x:Name="ReloadFill" Background="#55FF55" CornerRadius="4,0,0,4" 
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10" x:Name="FireRateBar">
+                                <Border x:Name="FireRateFill" Background="#55FFAA" CornerRadius="4,0,0,4" 
                                         Width="0" Height="10" HorizontalAlignment="Left">
                                     <Border.Effect>
-                                        <DropShadowEffect Color="#55FF55" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
+                                        <DropShadowEffect Color="#55FFAA" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
                                     </Border.Effect>
                                 </Border>
                             </Border>
                         </Grid>
                         
                         <Button Grid.Column="2" Width="30" Height="30" Style="{StaticResource RoundButton}"
-                                Background="#77FF77" BorderThickness="0" Cursor="Hand"
+                                Background="#77FFCC" BorderThickness="0" Cursor="Hand"
                                 Content="+" FontWeight="Bold" FontSize="18" Foreground="White"
-                                Click="ReloadUpgrade_Click">
-                                    <Button.Effect>
-                                        <DropShadowEffect Color="#55FF55" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
-                                    </Button.Effect>
-                                </Button>
+                                Click="FireRateUpgrade_Click" x:Name="FireRateUpgradeButton"/>
                     </Grid>
                     
-                    <!-- Movement Speed -->
+                    <!-- Reload -->
                     <Grid Margin="0,6" Height="30">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -613,7 +593,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         
-                        <Border Grid.Column="0" Background="#55FFFF" Width="30" Height="30">
+                        <Border Grid.Column="0" Background="#FFEE55" Width="30" Height="30">
                             <Border.CornerRadius>
                                 <CornerRadius>15</CornerRadius>
                             </Border.CornerRadius>
@@ -631,27 +611,68 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             
-                            <TextBlock Grid.Row="0" Text="СКОРОСТЬ ДВИЖЕНИЯ" Foreground="#DDDDDD" FontSize="11" 
+                            <TextBlock Grid.Row="0" Text="СКОРОСТЬ ПЕРЕЗАРЯДКИ" Foreground="#DDDDDD" FontSize="11" 
                                      FontWeight="Bold" Margin="0,0,0,2"/>
                             
-                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10">
-                                <Border x:Name="MovementSpeedFill" Background="#55FFFF" CornerRadius="4,0,0,4" 
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10" x:Name="ReloadBar">
+                                <Border x:Name="ReloadFill" Background="#FFEE55" CornerRadius="4,0,0,4" 
                                         Width="0" Height="10" HorizontalAlignment="Left">
                                     <Border.Effect>
-                                        <DropShadowEffect Color="#55FFFF" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
+                                        <DropShadowEffect Color="#FFEE55" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
                                     </Border.Effect>
                                 </Border>
                             </Border>
                         </Grid>
                         
                         <Button Grid.Column="2" Width="30" Height="30" Style="{StaticResource RoundButton}"
-                                Background="#77FFFF" BorderThickness="0" Cursor="Hand"
+                                Background="#FFDD77" BorderThickness="0" Cursor="Hand"
                                 Content="+" FontWeight="Bold" FontSize="18" Foreground="White"
-                                Click="MovementSpeedUpgrade_Click">
-                                    <Button.Effect>
-                                        <DropShadowEffect Color="#55FFFF" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
-                                    </Button.Effect>
-                                </Button>
+                                Click="ReloadUpgrade_Click" x:Name="ReloadUpgradeButton"/>
+                    </Grid>
+                    
+                    <!-- Movement Speed -->
+                    <Grid Margin="0,6" Height="30">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <Border Grid.Column="0" Background="#AA55FF" Width="30" Height="30">
+                            <Border.CornerRadius>
+                                <CornerRadius>15</CornerRadius>
+                            </Border.CornerRadius>
+                            <TextBlock Text="7" Foreground="White" FontSize="16" FontWeight="Bold" 
+                                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Effect>
+                                    <DropShadowEffect Color="Black" ShadowDepth="1" BlurRadius="2" Opacity="0.5"/>
+                                </TextBlock.Effect>
+                            </TextBlock>
+                        </Border>
+                        
+                        <Grid Grid.Column="1" Margin="8,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Text="СКОРОСТЬ ЕЗДЫ" Foreground="#DDDDDD" FontSize="11" 
+                                     FontWeight="Bold" Margin="0,0,0,2"/>
+                            
+                            <Border Grid.Row="1" Background="#333333" CornerRadius="4" Height="10" x:Name="MovementSpeedBar">
+                                <Border x:Name="MovementSpeedFill" Background="#AA55FF" CornerRadius="4,0,0,4" 
+                                        Width="0" Height="10" HorizontalAlignment="Left">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#AA55FF" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
+                                    </Border.Effect>
+                                </Border>
+                            </Border>
+                        </Grid>
+                        
+                        <Button Grid.Column="2" Width="30" Height="30" Style="{StaticResource RoundButton}"
+                                Background="#CC77FF" BorderThickness="0" Cursor="Hand"
+                                Content="+" FontWeight="Bold" FontSize="18" Foreground="White"
+                                Click="MovementSpeedUpgrade_Click" x:Name="MovementSpeedUpgradeButton"/>
                     </Grid>
                 </StackPanel>
             </Grid>
@@ -720,9 +741,6 @@
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
                     </Button.Template>
-                    <Button.Effect>
-                        <DropShadowEffect Color="#FF5555" ShadowDepth="0" BlurRadius="15" Opacity="0.8"/>
-                    </Button.Effect>
                     </Button>
             </StackPanel>
         </Border>

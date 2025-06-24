@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -528,41 +528,69 @@ public partial class MainWindow : Window
             switch (e.Key)
             {
                 case Key.D1:
-                    _player?.UpgradeHealthRegen();
-                    _skillPoints--;
-                    usedSkillPoint = true;
+                    if(_player.HealthRegenUpgradeLevel < Player.MAX_UPGRADE_LEVEL)
+                    {
+                        _player?.UpgradeHealthRegen();
+                        _skillPoints--;
+                        usedSkillPoint = true;
+                    }
                     break;
                 case Key.D2:
-                    _player?.UpgradeMaxHealth();
-                    _skillPoints--;
-                    usedSkillPoint = true;
+                    if(_player.MaxHealthUpgradeLevel < Player.MAX_UPGRADE_LEVEL)
+                    {
+                        _player?.UpgradeMaxHealth();
+                        _skillPoints--;
+                        usedSkillPoint = true;
+                    }
                     break;
                 case Key.D3:
-                    _player?.UpgradeBulletSpeed();
-                    _skillPoints--;
-                    usedSkillPoint = true;
+                    if(_player.BulletSpeedUpgradeLevel < Player.MAX_UPGRADE_LEVEL)
+                    {
+                        _player?.UpgradeBulletSpeed();
+                        _skillPoints--;
+                        usedSkillPoint = true;
+                    }
                     break;
                 case Key.D4:
-                    _player?.UpgradeBulletDamage();
-                    _skillPoints--;
-                    usedSkillPoint = true;
+                    if(_player.BulletDamageUpgradeLevel < Player.MAX_UPGRADE_LEVEL)
+                    {
+                        _player?.UpgradeBulletDamage();
+                        _skillPoints--;
+                        usedSkillPoint = true;
+                    }
                     break;
-
                 case Key.D5:
-                    _player?.UpgradeReloadSpeed();
-                    _skillPoints--;
-                    usedSkillPoint = true;
+                    if(_player.FireRateUpgradeLevel < Player.MAX_UPGRADE_LEVEL)
+                    {
+                        _player?.UpgradeFireRate();
+                        _skillPoints--;
+                        usedSkillPoint = true;
+                    }
                     break;
                 case Key.D6:
-                    _player?.UpgradeMovementSpeed();
-                    _skillPoints--;
-                    usedSkillPoint = true;
+                    if(_player.ReloadSpeedUpgradeLevel < Player.MAX_UPGRADE_LEVEL)
+                    {
+                        _player?.UpgradeReloadSpeed();
+                        _skillPoints--;
+                        usedSkillPoint = true;
+                    }
+                    break;
+                case Key.D7:
+                    if(_player.MovementSpeedUpgradeLevel < Player.MAX_UPGRADE_LEVEL)
+                    {
+                        _player?.UpgradeMovementSpeed();
+                        _skillPoints--;
+                        usedSkillPoint = true;
+                    }
                     break;
             }
             
             // Обновляем UI после любых изменений характеристик
-            UpdateStatsUI();
-            UpdatePlayerInfo();
+            if (usedSkillPoint)
+            {
+                UpdateStatsUI();
+                UpdatePlayerInfo();
+            }
             
             // Если очки навыков закончились, запускаем таймер автоматического закрытия
             if (usedSkillPoint && _skillPoints == 0)
@@ -875,28 +903,35 @@ public partial class MainWindow : Window
         SkillPointsText.Text = _skillPoints.ToString();
 
         // Health Regen
-        double healthRegenProgress = (double)_player.HealthRegenUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
-        HealthRegenFill.Width = healthRegenProgress * ((Border)HealthRegenFill.Parent).ActualWidth;
+        HealthRegenFill.Width = (double)_player.HealthRegenUpgradeLevel / Player.MAX_UPGRADE_LEVEL * (HealthRegenBar.ActualWidth);
         
         // Max Health
-        double maxHealthProgress = (double)_player.MaxHealthUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
-        MaxHealthFill.Width = maxHealthProgress * ((Border)MaxHealthFill.Parent).ActualWidth;
+        MaxHealthFill.Width = (double)_player.MaxHealthUpgradeLevel / Player.MAX_UPGRADE_LEVEL * (MaxHealthBar.ActualWidth);
 
         // Bullet Speed
-        double bulletSpeedProgress = (double)_player.BulletSpeedUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
-        BulletSpeedFill.Width = bulletSpeedProgress * ((Border)BulletSpeedFill.Parent).ActualWidth;
+        BulletSpeedFill.Width = (double)_player.BulletSpeedUpgradeLevel / Player.MAX_UPGRADE_LEVEL * (BulletSpeedBar.ActualWidth);
         
         // Bullet Damage
-        double bulletDamageProgress = (double)_player.BulletDamageUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
-        BulletDamageFill.Width = bulletDamageProgress * ((Border)BulletDamageFill.Parent).ActualWidth;
+        BulletDamageFill.Width = (double)_player.BulletDamageUpgradeLevel / Player.MAX_UPGRADE_LEVEL * (BulletDamageBar.ActualWidth);
         
         // Reload
-        double reloadProgress = (double)_player.ReloadSpeedUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
-        ReloadFill.Width = reloadProgress * ((Border)ReloadFill.Parent).ActualWidth;
+        ReloadFill.Width = (double)_player.ReloadSpeedUpgradeLevel / Player.MAX_UPGRADE_LEVEL * (ReloadBar.ActualWidth);
 
         // Movement Speed
-        double movementSpeedProgress = (double)_player.MovementSpeedUpgradeLevel / Player.MAX_UPGRADE_LEVEL;
-        MovementSpeedFill.Width = movementSpeedProgress * ((Border)MovementSpeedFill.Parent).ActualWidth;
+        MovementSpeedFill.Width = (double)_player.MovementSpeedUpgradeLevel / Player.MAX_UPGRADE_LEVEL * (MovementSpeedBar.ActualWidth);
+
+        // Fire Rate
+        FireRateFill.Width = (double)_player.FireRateUpgradeLevel / Player.MAX_UPGRADE_LEVEL * (FireRateBar.ActualWidth);
+
+        // Обновляем доступность кнопок
+        bool canUpgrade = _skillPoints > 0;
+        HealthRegenUpgradeButton.IsEnabled = canUpgrade;
+        MaxHealthUpgradeButton.IsEnabled = canUpgrade;
+        BulletSpeedUpgradeButton.IsEnabled = canUpgrade;
+        BulletDamageUpgradeButton.IsEnabled = canUpgrade;
+        FireRateUpgradeButton.IsEnabled = canUpgrade;
+        ReloadUpgradeButton.IsEnabled = canUpgrade;
+        MovementSpeedUpgradeButton.IsEnabled = canUpgrade;
     }
     
     // Обработчики кнопок улучшения характеристик
@@ -964,26 +999,29 @@ public partial class MainWindow : Window
     
     private void BulletDamageUpgrade_Click(object sender, RoutedEventArgs e)
     {
-        if (_skillPoints > 0 && _player != null)
+        if (_player != null && _skillPoints > 0)
         {
-            _player.UpgradeBulletDamage();
             _skillPoints--;
+            _player.UpgradeBulletDamage();
             UpdateStatsUI();
             UpdatePlayerInfo();
-            
-            // Если очки навыков закончились, запускаем таймер автоматического закрытия
-            if (_skillPoints == 0)
-            {
-                _statsNotificationTimer!.Stop();
-                _statsNotificationTimer.Interval = TimeSpan.FromSeconds(1.5);
-                _statsNotificationTimer.Start();
-            }
+        }
+    }
+    
+    private void FireRateUpgrade_Click(object sender, RoutedEventArgs e)
+    {
+        if (_player != null && _skillPoints > 0)
+        {
+            _skillPoints--;
+            _player.UpgradeFireRate();
+            UpdateStatsUI();
+            UpdatePlayerInfo();
         }
     }
     
     private void ReloadUpgrade_Click(object sender, RoutedEventArgs e)
     {
-        if (_skillPoints > 0 && _player != null)
+        if (_player != null && _skillPoints > 0)
         {
             _player.UpgradeReloadSpeed();
             _skillPoints--;

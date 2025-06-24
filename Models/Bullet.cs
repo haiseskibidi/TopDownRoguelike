@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using GunVault.GameEngine;
 using GunVault.Models.Physics;
+using System.Collections.Generic;
 
 namespace GunVault.Models
 {
@@ -22,7 +23,10 @@ namespace GunVault.Models
         private double _prevY;
         
         public UIElement BulletShape { get; private set; }
-        private const double BULLET_RADIUS = 4.0; 
+        public double Radius { get; private set; }
+        
+        private string _currentSpriteName;
+        private readonly SpriteManager _spriteManager;
         
         public TileType? CollidedWithTileType { get; private set; }
         
@@ -31,9 +35,15 @@ namespace GunVault.Models
         public double ExplosionRadius { get; set; }
         public double ExplosionDamage { get; set; }
         
+        // Свойства для рикошета
+        public bool CanRicochet { get; private set; }
+        public int RicochetCount { get; private set; }
+        public int MaxRicochets { get; private set; }
+        private readonly List<Enemy> _hitEnemies;
+        
         public bool IsActive { get; private set; }
         
-        public Bullet(double startX, double startY, double angle, double speed, double damage, string spriteName, SpriteManager spriteManager)
+        public Bullet(double startX, double startY, double angle, double speed, double damage, double bulletSize, string spriteName, SpriteManager spriteManager)
         {
             X = startX;
             Y = startY;
@@ -42,6 +52,9 @@ namespace GunVault.Models
             _angle = angle;
             Speed = speed;
             Damage = damage;
+            Radius = bulletSize / 2.0;
+            _spriteManager = spriteManager;
+            _currentSpriteName = spriteName;
             CollidedWithTileType = null;
             
             // По умолчанию пуля не взрывается
@@ -50,29 +63,30 @@ namespace GunVault.Models
             ExplosionDamage = 0;
             IsActive = true;
             
-            if (spriteManager != null && !string.IsNullOrEmpty(spriteName))
+            // Настройки рикошета по умолчанию
+            CanRicochet = false;
+            RicochetCount = 0;
+            MaxRicochets = 0;
+            _hitEnemies = new List<Enemy>();
+            
+            // Create a generic shape that can be restyled later. A Rectangle is good for this.
+            BulletShape = new Rectangle
             {
-                BulletShape = spriteManager.CreateSpriteImage(spriteName, BULLET_RADIUS * 2, BULLET_RADIUS * 2);
-            }
-            else
-            {
-                BulletShape = new Ellipse
-                {
-                    Width = BULLET_RADIUS * 2,
-                    Height = BULLET_RADIUS * 2,
-                    Fill = Brushes.Yellow,
-                    Stroke = Brushes.White,
-                    StrokeThickness = 1
-                };
-            }
+                Width = bulletSize,
+                Height = bulletSize,
+                RadiusX = bulletSize / 2, // Make it a circle by default
+                RadiusY = bulletSize / 2
+            };
+            
+            UpdateShapeStyle(spriteName, bulletSize);
             
             UpdatePosition();
         }
         
         public void UpdatePosition()
         {
-            Canvas.SetLeft(BulletShape, X - BULLET_RADIUS);
-            Canvas.SetTop(BulletShape, Y - BULLET_RADIUS);
+            Canvas.SetLeft(BulletShape, X - Radius);
+            Canvas.SetTop(BulletShape, Y - Radius);
         }
         
         public bool Move(double deltaTime)
@@ -99,7 +113,7 @@ namespace GunVault.Models
             return CollisionHelper.CheckBulletEnemyCollision(
                 X, Y, 
                 _prevX, _prevY, 
-                BULLET_RADIUS, 
+                Radius, 
                 enemy.X, enemy.Y, 
                 enemy.Radius);
         }
@@ -114,7 +128,7 @@ namespace GunVault.Models
             if (CollisionHelper.CheckBulletTileCollision(
                 X, Y, 
                 _prevX, _prevY, 
-                BULLET_RADIUS, 
+                Radius, 
                 tileCollider))
             {
                 CollidedWithTileType = tileType;
@@ -124,7 +138,7 @@ namespace GunVault.Models
             return false;
         }
 
-        public void Init(double startX, double startY, double angle, double speed, double damage, string spriteName, SpriteManager spriteManager, bool isExplosive, double explosionRadius, double explosionDamage)
+        public void Init(double startX, double startY, double angle, double speed, double damage, double bulletSize, string spriteName, bool isExplosive, double explosionRadius, double explosionDamage, bool canRicochet, int maxRicochets)
         {
             X = startX;
             Y = startY;
@@ -133,14 +147,70 @@ namespace GunVault.Models
             _angle = angle;
             Speed = speed;
             Damage = damage;
+            Radius = bulletSize / 2.0;
             IsExplosive = isExplosive;
             ExplosionRadius = explosionRadius;
             ExplosionDamage = explosionDamage;
             CollidedWithTileType = null;
+            
+            // Инициализация рикошета
+            CanRicochet = canRicochet;
+            MaxRicochets = maxRicochets;
+            RicochetCount = 0;
+            _hitEnemies.Clear();
 
-            // Here we assume the BulletShape (UIElement) is already created and just needs to be updated.
+            if (BulletShape is Shape shape)
+            {
+                shape.Width = bulletSize;
+                shape.Height = bulletSize;
+
+                // Only update style if the sprite name has changed
+                if (_currentSpriteName != spriteName)
+                {
+                    UpdateShapeStyle(spriteName, bulletSize);
+                    _currentSpriteName = spriteName;
+                }
+            }
+            
             UpdatePosition();
             Activate();
+        }
+
+        private void UpdateShapeStyle(string spriteName, double bulletSize)
+        {
+            if (BulletShape is not Rectangle shape) return;
+
+            if (_spriteManager != null && !string.IsNullOrEmpty(spriteName))
+            {
+                // Use sprite
+                var sprite = _spriteManager.LoadSprite(spriteName);
+                if (sprite != null)
+                {
+                    shape.Fill = new ImageBrush(sprite);
+                    shape.Stroke = Brushes.Transparent;
+                    shape.StrokeThickness = 0;
+                    shape.RadiusX = 0; // Make it a square for the sprite
+                    shape.RadiusY = 0;
+                }
+                else
+                {
+                    // Fallback if sprite fails to load
+                    shape.Fill = Brushes.MediumPurple; // Use a distinct color for debugging
+                    shape.Stroke = Brushes.White;
+                    shape.StrokeThickness = 1;
+                    shape.RadiusX = bulletSize / 2;
+                    shape.RadiusY = bulletSize / 2;
+                }
+            }
+            else
+            {
+                // Use default circle
+                shape.Fill = Brushes.Yellow;
+                shape.Stroke = Brushes.White;
+                shape.StrokeThickness = 1;
+                shape.RadiusX = bulletSize / 2; // Make it a circle
+                shape.RadiusY = bulletSize / 2;
+            }
         }
 
         public void Activate()
@@ -153,6 +223,25 @@ namespace GunVault.Models
         {
             IsActive = false;
             BulletShape.Visibility = Visibility.Collapsed;
+        }
+
+        public void Redirect(double newAngle)
+        {
+            _angle = newAngle;
+            RicochetCount++;
+        }
+
+        public void AddHitEnemy(Enemy enemy)
+        {
+            if (!_hitEnemies.Contains(enemy))
+            {
+                _hitEnemies.Add(enemy);
+            }
+        }
+
+        public bool HasHitEnemy(Enemy enemy)
+        {
+            return _hitEnemies.Contains(enemy);
         }
     }
 } 

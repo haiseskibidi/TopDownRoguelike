@@ -8,8 +8,19 @@ namespace GunVault.Models.PlayerClasses
         public override string Name => "Инженер";
         public override string Description => "Класс поддержки, способный выживать в бою за счет ремонта и усиливать себя с помощью технологий.";
         public override string SkillName => "Ремонт";
-        public override string SkillDescription => "Мгновенно восстанавливает часть здоровья и продолжает лечить в течение 3-5 секунд.";
-        public override string GunSpriteName => "guns/engineer_t1"; // Placeholder
+        public override string SkillDescription => "Мгновенно восстанавливает часть прочности и временно увеличивает регенерацию.";
+        public override string GunSpriteName => "guns/engineer_t1"; 
+        public override double GunWidth => 25;
+        public override double GunHeight => 11.25;
+        public override double FireRate => 1.2;
+        public override double Damage => 8;
+        public override double BulletSpeed => 350;
+        public override double Spread => 0.05;
+        public override double BulletSize => 14; // Gears
+        public override string BulletSpriteName => "gear";
+
+        public override bool CanRicochet => true;
+        public override int MaxRicochets => 5;
 
         public override void ApplyTemporarySkill(Player player)
         {

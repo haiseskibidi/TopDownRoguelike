@@ -19,13 +19,14 @@ namespace GunVault.Models
         private const double ACCELERATION = 0.1; // How quickly the player gains speed
         private const double FRICTION = 0.95;    // How quickly the player slows down (lower = more friction)
         private const double BODY_SIZE = 32.0;
-        private const double GUN_WIDTH = 30.0;
-        private const double GUN_HEIGHT = 10.0;
 
         public struct BulletParams
         {
-            public double StartX, StartY, Angle, Speed, Damage, ExplosionRadius, ExplosionDamage;
+            public double StartX, StartY, Angle, Speed, Damage, ExplosionRadius, ExplosionDamage, BulletSize;
+            public string BulletSpriteName;
             public bool IsExplosive;
+            public bool CanRicochet;
+            public int MaxRicochets;
         }
 
         public double X { get; private set; }
@@ -38,6 +39,7 @@ namespace GunVault.Models
         public double ReloadSpeedModifier { get; private set; }
         public double MovementSpeed { get; private set; }
         public double BulletSpreadModifier { get; private set; }
+        public double FireRateModifier { get; private set; }
         
         // New properties for Body and Gun
         public UIElement BodyShape { get; private set; }
@@ -60,6 +62,7 @@ namespace GunVault.Models
         private double _targetBodyAngle = 0; // Target angle for smooth body rotation
         private readonly SpriteManager? _spriteManager;
         private bool _isDying = false;
+        private bool _assaultUseLeftBarrel = true; // For Assault class alternating fire
         
         // Class System
         public PlayerClass ChosenClass { get; private set; }
@@ -71,6 +74,7 @@ namespace GunVault.Models
         public int BulletDamageUpgradeLevel { get; private set; } = 0;
         public int ReloadSpeedUpgradeLevel { get; private set; } = 0;
         public int MovementSpeedUpgradeLevel { get; private set; } = 0;
+        public int FireRateUpgradeLevel { get; private set; } = 0;
         public const int MAX_UPGRADE_LEVEL = 10;
         
         private static readonly Dictionary<string, Tuple<double, double>> SpriteProportions = new Dictionary<string, Tuple<double, double>>
@@ -92,6 +96,7 @@ namespace GunVault.Models
             ReloadSpeedModifier = 1.0;
             MovementSpeed = 3.0;
             BulletSpreadModifier = 1.0;
+            FireRateModifier = 1.0;
             _spriteManager = spriteManager;
             _isDying = false;
             
@@ -100,16 +105,16 @@ namespace GunVault.Models
             if (spriteManager != null)
             {
                 BodyShape = spriteManager.CreateSpriteImage("body", BODY_SIZE, BODY_SIZE);
-                GunShape = spriteManager.CreateSpriteImage("guns/defolt", GUN_WIDTH, GUN_HEIGHT);
+                UpdateWeaponSprite();
             }
             else
             {
                 // Fallback shapes if sprite manager fails
                 BodyShape = new Ellipse { Width = BODY_SIZE, Height = BODY_SIZE, Fill = Brushes.DarkGray };
-                GunShape = new Rectangle { Width = GUN_WIDTH, Height = GUN_HEIGHT, Fill = Brushes.LightGray };
+                GunShape = new Rectangle { Width = (ChosenClass?.GunWidth ?? 25.0), Height = (ChosenClass?.GunHeight ?? 10.0), Fill = Brushes.LightGray };
             }
             
-            CurrentWeapon = WeaponFactory.CreateWeapon(WeaponType.Pistol);
+            InitializeWeapon();
             
             UpdatePosition();
             
@@ -195,8 +200,10 @@ namespace GunVault.Models
             BodyShape.RenderTransform = new RotateTransform(_bodyAngle * 180 / Math.PI);
 
             // Update gun position
-            Canvas.SetLeft(GunShape, X - GUN_WIDTH / 4); // Position relative to body center
-            Canvas.SetTop(GunShape, Y - GUN_HEIGHT / 2);
+            double gunWidth = ChosenClass?.GunWidth ?? 25.0;
+            double gunHeight = ChosenClass?.GunHeight ?? 10.0;
+            Canvas.SetLeft(GunShape, X - gunWidth / 4); // Position relative to body center
+            Canvas.SetTop(GunShape, Y - gunHeight / 2);
             GunShape.RenderTransformOrigin = new Point(0.25, 0.5); // Rotate around a point near the back
             GunShape.RenderTransform = new RotateTransform(_gunAngle * 180 / Math.PI);
             
@@ -357,9 +364,23 @@ namespace GunVault.Models
                 var bulletParamsList = new List<BulletParams>();
 
                 // Muzzle position should be at the tip of the gun barrel
-                double muzzleDistance = GUN_WIDTH * 0.75; // A bit out from the gun's rotation origin
+                double muzzleDistance = (ChosenClass?.GunWidth ?? 25.0) * 0.75; // A bit out from the gun's rotation origin
                 double muzzleX = X + Math.Cos(_gunAngle) * muzzleDistance;
                 double muzzleY = Y + Math.Sin(_gunAngle) * muzzleDistance;
+
+                // Assault-specific alternating fire logic
+                if (ChosenClass?.ClassType == PlayerClassType.Assault)
+                {
+                    double barrelOffset = 5; // Distance of each barrel from the center
+                    double angleOffset = _assaultUseLeftBarrel ? -Math.PI / 2 : Math.PI / 2;
+                    
+                    double perpendicularAngle = _gunAngle + angleOffset;
+
+                    muzzleX += Math.Cos(perpendicularAngle) * barrelOffset;
+                    muzzleY += Math.Sin(perpendicularAngle) * barrelOffset;
+
+                    _assaultUseLeftBarrel = !_assaultUseLeftBarrel; // Switch barrel for next shot
+                }
 
                 for (int i = 0; i < CurrentWeapon.BulletsPerShot; i++)
                 {
@@ -374,7 +395,11 @@ namespace GunVault.Models
                         Damage = CurrentWeapon.Damage * BulletDamageModifier,
                         IsExplosive = CurrentWeapon.IsExplosive,
                         ExplosionRadius = CurrentWeapon.ExplosionRadius,
-                        ExplosionDamage = CurrentWeapon.Damage * CurrentWeapon.ExplosionDamageMultiplier
+                        ExplosionDamage = CurrentWeapon.Damage * CurrentWeapon.ExplosionDamageMultiplier,
+                        BulletSize = CurrentWeapon.BulletSize, // Use weapon-specific size
+                        BulletSpriteName = ChosenClass?.BulletSpriteName ?? "",
+                        CanRicochet = ChosenClass?.CanRicochet ?? false,
+                        MaxRicochets = ChosenClass?.MaxRicochets ?? 0
                     };
                     
                     bulletParamsList.Add(bulletParams);
@@ -422,8 +447,9 @@ namespace GunVault.Models
         public void UpgradeMaxHealth() { MaxHealth += 20; Health += 20; MaxHealthUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, MaxHealthUpgradeLevel + 1); }
         public void UpgradeBulletSpeed() { BulletSpeedModifier += 0.1; BulletSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, BulletSpeedUpgradeLevel + 1); }
         public void UpgradeBulletDamage() { BulletDamageModifier += 0.1; BulletDamageUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, BulletDamageUpgradeLevel + 1); }
-        public void UpgradeReloadSpeed() { ReloadSpeedModifier += 0.1; ReloadSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, ReloadSpeedUpgradeLevel + 1); }
+        public void UpgradeReloadSpeed() { ReloadSpeedModifier += 0.1; ReloadSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, ReloadSpeedUpgradeLevel + 1); CurrentWeapon?.UpdateReloadSpeed(ReloadSpeedModifier); }
         public void UpgradeMovementSpeed() { MovementSpeed += 0.12; MovementSpeedUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, MovementSpeedUpgradeLevel + 1); }
+        public void UpgradeFireRate() { FireRateModifier += 0.075; FireRateUpgradeLevel = Math.Min(MAX_UPGRADE_LEVEL, FireRateUpgradeLevel + 1); CurrentWeapon?.UpdateFireRate(FireRateModifier); }
         public void UpgradeBulletSpread(double amount) { BulletSpreadModifier += amount; if (BulletSpreadModifier < 1.0) BulletSpreadModifier = 1.0; Console.WriteLine($"Модификатор разброса пуль изменен на {amount:F2}, текущее значение: {BulletSpreadModifier:F2}"); }
 
         private SpriteManager GetSpriteManager()
@@ -466,10 +492,7 @@ namespace GunVault.Models
         {
             ReloadSpeedModifier += amount;
             if (ReloadSpeedModifier < 0.1) ReloadSpeedModifier = 0.1;
-            if (CurrentWeapon != null)
-            {
-                CurrentWeapon.UpdateReloadSpeed(ReloadSpeedModifier);
-            }
+            CurrentWeapon?.UpdateReloadSpeed(ReloadSpeedModifier);
             Console.WriteLine($"Модификатор скорости перезарядки изменен на {amount:F2}, текущее значение: {ReloadSpeedModifier:F2}");
         }
         
@@ -528,8 +551,10 @@ namespace GunVault.Models
             if (ChosenClass == null)
             {
                 ChosenClass = playerClass;
-                playerClass.ApplyPassiveBonuses(this);
-                Console.WriteLine($"Player class set to: {playerClass.Name}. Passive bonuses applied.");
+                Console.WriteLine($"Класс игрока установлен на: {playerClass.Name}");
+                ChosenClass.ApplyPassiveBonuses(this);
+                UpdateWeaponSprite();
+                InitializeWeapon(); // Re-initialize weapon with class stats
             }
         }
 
@@ -539,6 +564,78 @@ namespace GunVault.Models
             Y = newY;
             UpdatePosition();
             Console.WriteLine($"Player position set to: ({X:F1}, {Y:F1})");
+        }
+
+        private void UpdateWeaponSprite()
+        {
+            if (_spriteManager == null) return;
+
+            string spriteName = "guns/defolt"; // Default sprite
+
+            if (ChosenClass != null)
+            {
+                spriteName = ChosenClass.GunSpriteName;
+            }
+
+            var existingGun = GunShape;
+            double gunWidth = ChosenClass?.GunWidth ?? 25.0;
+            double gunHeight = ChosenClass?.GunHeight ?? 10.0;
+            GunShape = _spriteManager.CreateSpriteImage(spriteName, gunWidth, gunHeight);
+
+            // If the gun is already on a canvas, replace it
+            if (existingGun is FrameworkElement oldGunElement && oldGunElement.Parent is Canvas canvas)
+            {
+                canvas.Children.Remove(oldGunElement);
+                canvas.Children.Add(GunShape);
+                UpdatePosition(); // Re-apply transforms
+            }
+        }
+
+        private void InitializeWeapon()
+        {
+            // Default pistol values
+            string name = "Пистолет";
+            WeaponType type = WeaponType.Pistol;
+            double damage = 10;
+            double fireRate = 2;
+            double range = 500;
+            double bulletSpeed = 300;
+            int maxAmmo = 12;
+            double reloadTime = 1.5;
+            double spread = 0.05;
+            int bulletsPerShot = 1;
+            string bulletSpriteName = "bullet_pistol";
+            double bulletSize = 6.0; // Default bullet size
+
+            // If a class is chosen, override the stats
+            if (ChosenClass != null)
+            {
+                name = ChosenClass.Name;
+                fireRate = ChosenClass.FireRate;
+                damage = ChosenClass.Damage;
+                bulletSpeed = ChosenClass.BulletSpeed;
+                spread = ChosenClass.Spread;
+                bulletSize = ChosenClass.BulletSize;
+                bulletSpriteName = ChosenClass.BulletSpriteName;
+            }
+
+            CurrentWeapon = new Weapon(
+                name: name,
+                type: type,
+                damage: damage,
+                fireRate: fireRate,
+                range: range,
+                bulletSpeed: bulletSpeed,
+                maxAmmo: maxAmmo,
+                reloadTime: reloadTime,
+                spread: spread,
+                bulletsPerShot: bulletsPerShot,
+                bulletSpriteName: bulletSpriteName,
+                bulletSize: bulletSize
+            );
+            
+            CurrentWeapon.UpdateFireRate(FireRateModifier);
+            CurrentWeapon.UpdateReloadSpeed(ReloadSpeedModifier);
         }
     }
 } 

@@ -7,13 +7,24 @@ namespace GunVault.Models.PlayerClasses
         public override PlayerClassType ClassType => PlayerClassType.Heavy;
         public override string Name => "Тяжёлый танк";
         public override string Description => "Живая крепость, способная выдерживать огромный урон и отвечать мощными атаками по площади.";
-        public override string SkillName => "Броня";
-        public override string SkillDescription => "Временно снижает весь получаемый урон на 50%.";
-        public override string GunSpriteName => "guns/heavy_t1"; // Placeholder
+        public override string SkillName => "Несокрушимость";
+        public override string SkillDescription => "На короткое время значительно увеличивает броню и сопротивление урону.";
+        public override string GunSpriteName => "guns/heavy_t1"; 
+        public override double GunWidth => 28.75;
+        public override double GunHeight => 15;
+        public override double FireRate => 0.5;
+        public override double Damage => 50;
+        public override double BulletSpeed => 250;
+        public override double Spread => 0.1;
+        public override double BulletSize => 12; // Big bullets
+        public override string BulletSpriteName => "";
+
+        public override bool CanRicochet => false;
+        public override int MaxRicochets => 0;
 
         public override void ApplyTemporarySkill(Player player)
         {
-            // TODO: Implement "Juggernaut" skill
+            // TODO: Implement Unbreakable skill
         }
 
         public override void ApplyPassiveBonuses(Player player)

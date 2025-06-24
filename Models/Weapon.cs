@@ -23,6 +23,7 @@ namespace GunVault.Models
         public double BulletSpeed { get; private set; }
         public WeaponType Type { get; private set; }
         public string BulletSpriteName { get; set; }
+        public double BulletSize { get; private set; }
         
         public int MaxAmmo { get; private set; }
         public int CurrentAmmo { get; private set; }
@@ -42,7 +43,7 @@ namespace GunVault.Models
         
         public Weapon(string name, WeaponType type, double damage, double fireRate, double range, 
                       double bulletSpeed, int maxAmmo, double reloadTime, double spread, int bulletsPerShot,
-                      string bulletSpriteName, bool isExplosive = false, double explosionRadius = 0, double explosionDamageMultiplier = 1.0)
+                      string bulletSpriteName, double bulletSize, bool isExplosive = false, double explosionRadius = 0, double explosionDamageMultiplier = 1.0)
         {
             Name = name;
             Type = type;
@@ -56,6 +57,7 @@ namespace GunVault.Models
             Spread = spread;
             BulletsPerShot = bulletsPerShot;
             BulletSpriteName = bulletSpriteName;
+            BulletSize = bulletSize;
             
             IsExplosive = isExplosive;
             ExplosionRadius = explosionRadius;
@@ -138,6 +140,13 @@ namespace GunVault.Models
         public void UpdateReloadSpeed(double reloadSpeedModifier)
         {
             Console.WriteLine($"Время перезарядки для {Name} обновлено: {ReloadTime / reloadSpeedModifier:F2} сек.");
+        }
+
+        public void UpdateFireRate(double fireRateModifier)
+        {
+            // A higher fireRateModifier should decrease the cooldown time.
+            _cooldownTime = 1.0 / (FireRate * fireRateModifier);
+            Console.WriteLine($"Кулдаун выстрела для {Name} обновлен: {_cooldownTime:F3} сек. (модификатор: {fireRateModifier:F2})");
         }
     }
 } 

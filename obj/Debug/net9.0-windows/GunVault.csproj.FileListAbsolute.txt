@@ -58,3 +58,8 @@ C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\enemy3.png
 C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\enemy4.png
 C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\body.png
 C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\guns\defolt.png
+C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\guns\assault_t1.png
+C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\guns\sniper_t1.png
+C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\guns\engineer_t1.png
+C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\guns\heavy_t1.png
+C:\Users\Q1\Documents\gunvault\bin\Debug\net9.0-windows\Sprites\gear.png
