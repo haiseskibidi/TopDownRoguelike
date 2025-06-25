@@ -14,7 +14,7 @@ namespace GunVault.Models.PlayerClasses
         public override double GunHeight => 15;
         public override double FireRate => 0.5;
         public override double Damage => 50;
-        public override double BulletSpeed => 250;
+        public override double BulletSpeed => 100;
         public override double Spread => 0.1;
         public override double BulletSize => 12; // Big bullets
         public override string BulletSpriteName => "";

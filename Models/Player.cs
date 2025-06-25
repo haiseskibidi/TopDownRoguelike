@@ -19,7 +19,7 @@ namespace GunVault.Models
         private const double ACCELERATION = 0.1; // How quickly the player gains speed
         private const double FRICTION = 0.95;    // How quickly the player slows down (lower = more friction)
         private const double BODY_SIZE = 32.0;
-
+        
         public struct BulletParams
         {
             public double StartX, StartY, Angle, Speed, Damage, ExplosionRadius, ExplosionDamage, BulletSize;
@@ -28,7 +28,7 @@ namespace GunVault.Models
             public bool CanRicochet;
             public int MaxRicochets;
         }
-
+        
         public double X { get; private set; }
         public double Y { get; private set; }
         public double Health { get; private set; }
@@ -48,14 +48,14 @@ namespace GunVault.Models
         public Weapon CurrentWeapon { get; private set; }
         public CircleCollider Collider { get; private set; } // Changed to CircleCollider
         public Rectangle ColliderVisual { get; private set; }
-
+        
         public bool MovingUp { get; set; }
         public bool MovingDown { get; set; }
         public bool MovingLeft { get; set; }
         public bool MovingRight { get; set; }
         public double VelocityX { get; private set; }
         public double VelocityY { get; private set; }
-
+        
         private double _gunAngle = 0;
         private double _targetGunAngle = 0;
         private double _bodyAngle = 0;
@@ -66,7 +66,7 @@ namespace GunVault.Models
         
         // Class System
         public PlayerClass ChosenClass { get; private set; }
-
+        
         // Уровни характеристик игрока
         public int HealthRegenUpgradeLevel { get; private set; } = 0;
         public int MaxHealthUpgradeLevel { get; private set; } = 0;
@@ -231,7 +231,7 @@ namespace GunVault.Models
             // Smoothly rotate the BODY towards the target angle (movement direction)
             double angleDifference = NormalizeAngle(_targetBodyAngle - _bodyAngle);
             double maxRotation = BODY_ROTATION_SPEED * deltaTime;
-
+            
             if (Math.Abs(angleDifference) <= maxRotation)
             {
                 _bodyAngle = _targetBodyAngle;
@@ -599,7 +599,7 @@ namespace GunVault.Models
             double damage = 10;
             double fireRate = 2;
             double range = 500;
-            double bulletSpeed = 300;
+            double bulletSpeed = 175;
             int maxAmmo = 12;
             double reloadTime = 1.5;
             double spread = 0.05;
